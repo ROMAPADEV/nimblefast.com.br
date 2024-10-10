@@ -79,7 +79,7 @@ export default createMiddleware(nextIntl)
 // console.log(patchAuth)
 export const config = {
   matcher: [
-    '/((?!api|_next|en-US/auth|en-US/auth/signup|pt-BR/auth|pt-BR/auth/signup|es-ES/auth|es-ES/auth/signup|.*\\..*).*)',
+    '/((?!api|_next|en-US/auth|en-US/auth/signup|en-US/rota|pt-BR/auth|pt-BR/auth/signup|pt-BR/rota|es-ES/auth|es-ES/auth/signup|es-ES/rota|.*\\..*).*)',
   ],
   // matcher: [`/((?!api|_next|${patchAuth}|.*\\..*).*)`],
 }
