@@ -200,7 +200,11 @@ export default function Auth({ params }: Props) {
             </form>
 
             <Box display="flex" justifyContent="flex-end" sx={{ my: 2 }}>
-              <Link href="#" variant="body2" color="primary">
+              <Link
+                href={`/${lang}/auth/signup`}
+                variant="body2"
+                color="primary"
+              >
                 Não tem uma conta? Crie aqui
               </Link>
             </Box>

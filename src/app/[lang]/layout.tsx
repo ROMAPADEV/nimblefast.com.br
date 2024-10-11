@@ -1,7 +1,6 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 'use client'
 
-import React, { ReactElement, useEffect } from 'react'
+import React, { ReactElement } from 'react'
 import { AppProvider } from '@toolpad/core/AppProvider'
 import { ProviderLayout } from 'src/components'
 import { type Locale } from 'src/infrastructure/providers/index'
@@ -9,11 +8,9 @@ import DashboardIcon from '@mui/icons-material/Dashboard'
 import LocalShippingIcon from '@mui/icons-material/LocalShipping'
 import PersonIcon from '@mui/icons-material/Person'
 import { useAppTheme } from 'src/infrastructure/hooks'
-import type { Session, Router, Navigation } from '@toolpad/core'
+import type { Session, Navigation } from '@toolpad/core'
 import MapIcon from '@mui/icons-material/Map'
-import { getCookie } from 'cookies-next'
 import { useRouter } from 'next/navigation'
-// import { useAuth } from 'src/infrastructure/providers/index'
 
 interface Props {
   children: ReactElement

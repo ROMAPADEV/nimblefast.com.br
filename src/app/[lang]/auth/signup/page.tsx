@@ -5,7 +5,6 @@ import { Box } from '@mui/material'
 import { useRouter } from 'next/navigation'
 import { getDictionaryUseClient } from 'src/infrastructure/providers/intl/dictionaries/dictionary-use-client'
 import { type Locale } from 'src/infrastructure/providers'
-import { User } from 'src/infrastructure/providers/zustand/types'
 import { LoadingButton } from '@mui/lab'
 import Container from '@mui/material/Container'
 import Link from '@mui/material/Link'
@@ -14,26 +13,14 @@ import Typography from '@mui/material/Typography'
 import { toast } from 'react-toastify'
 import { useFormik } from 'formik'
 import { Input } from 'src/components'
-import { exibirError } from 'src/adapters'
-import { usePostSWR } from 'src/infrastructure/hooks'
+import { api, exibirError } from 'src/adapters'
 import { Signup } from 'src/infrastructure/types'
-// import { validarFormSignup } from '../validar-erro-form'
+import { validarFormSignup } from '../validar-erro-form'
 
 interface Props {
   params: {
     lang: Locale
   }
-}
-
-interface Params {
-  email: string
-  password: string
-}
-
-interface Result {
-  token: string
-  refreshtoken: string
-  user: User
 }
 
 export default function Page({ params }: Props) {
@@ -44,20 +31,24 @@ export default function Page({ params }: Props) {
 
   const router = useRouter()
 
-  const { create } = usePostSWR('/api/signup')
-
   const formik = useFormik<Signup>({
     initialValues: {
       name: '',
       email: '',
       password: '',
     },
-    // validationSchema: validarFormSignup(dict),
-    onSubmit: async (params: Signup) => {
+    validationSchema: validarFormSignup(dict),
+    onSubmit: async (data: Signup) => {
       try {
         setLoading(true)
 
-        await create<Params, Result>(params)
+        const params = {
+          type: 'admin',
+          companyName: 'Default',
+          ...data,
+        }
+
+        await api.post('/auth/signup', params)
 
         toast.success(dict.validation.userCreated)
         router.replace(`/${lang}/auth`)
@@ -97,7 +88,7 @@ export default function Page({ params }: Props) {
               label={dict.pages.auth.name}
               name="name"
               autoFocus
-              maxRows={120}
+              maxRows={100}
             />
             <Input
               formik={formik}

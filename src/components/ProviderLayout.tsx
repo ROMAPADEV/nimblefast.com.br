@@ -3,7 +3,6 @@
 import 'react-toastify/dist/ReactToastify.css'
 import { ReactElement } from 'react'
 import { usePathname } from 'src/navigation'
-// import { ThemeProvider } from '@mui/material/styles'
 import { LocalizationProvider } from '@mui/x-date-pickers'
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns'
 import { CssBaseline } from '@mui/material'
@@ -22,12 +21,15 @@ interface PropsSwitchLayout {
   children: ReactElement
 }
 
-const routes = ['/auth', '/auth/logout', '/auth/signup']
+const routes = ['/auth', '/auth/logout', '/auth/signup', '/rota']
 
 function SwitchLayout({ children }: PropsSwitchLayout) {
   const pathname = usePathname()
 
   switch (true) {
+    case pathname.startsWith('/rota'):
+      return <>{children}</>
+
     case routes.includes(pathname):
       return <>{children}</>
 
@@ -37,12 +39,10 @@ function SwitchLayout({ children }: PropsSwitchLayout) {
 }
 
 export function ProviderLayout({ children, locale }: Props) {
-  // const theme = useAppTheme(locale)
   const dateFnsLocale = useDateFnsLocale(locale)
 
   return (
     <NextIntlClientProvider locale={locale}>
-      {/* <ThemeProvider theme={theme}> */}
       <LocalizationProvider
         dateAdapter={AdapterDateFns}
         adapterLocale={dateFnsLocale}
@@ -51,7 +51,6 @@ export function ProviderLayout({ children, locale }: Props) {
         <SwitchLayout>{children}</SwitchLayout>
         <ToastContainer />
       </LocalizationProvider>
-      {/* </ThemeProvider> */}
     </NextIntlClientProvider>
   )
 }

@@ -9,6 +9,7 @@ export function validarFormSignin(dict: Dictionary) {
     password: Yup.string().required(dict.validation.isRequired),
   })
 }
+
 export function validarFormSignup(dict: Dictionary) {
   return Yup.object().shape({
     name: Yup.string()
