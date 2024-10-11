@@ -13,6 +13,8 @@ import { api, exibirError } from 'src/adapters'
 import { Signin } from 'src/infrastructure/types'
 import { Input } from 'src/components'
 import { validarFormSignin } from './validar-erro-form'
+import { useAuth } from 'src/infrastructure/providers'
+import Jwt from 'jsonwebtoken'
 
 interface Props {
   params: {
@@ -23,6 +25,7 @@ interface Props {
 export default function Auth({ params }: Props) {
   const { lang } = params
   const dict = getDictionaryUseClient(lang)
+  const { setUser } = useAuth()
 
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -44,18 +47,18 @@ export default function Auth({ params }: Props) {
         console.log('Resposta da API:', response) // Log para ver a resposta da API
 
         const {
-          data: { token, user }, // Supondo que a API também retorne os dados do usuário
+          data: { token },
         } = response
 
-        console.log('Token recebido:', token) // Verificando o token recebido
-        console.log('Usuário recebido:', user) // Verificando os dados do usuário
-
+        const decode = Jwt.decode(token) as {
+          id: number
+          name: string
+          email: string
+        }
+        setUser({ id: decode.id, name: decode.name, email: decode.email })
         setCookie('token', token)
         setCookie('refreshtoken', token)
         setCookie('NEXT_LOCALE', lang)
-
-        // Salvando os dados do usuário, se necessário
-        setCookie('user', JSON.stringify(user))
 
         router.replace(`/${lang}/`)
       } catch (error) {

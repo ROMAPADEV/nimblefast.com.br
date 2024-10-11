@@ -5,7 +5,6 @@ import type {
   DrawerState,
   AuthState,
   User,
-  Wallet,
   ChangeLanguage,
 } from './types'
 
@@ -36,14 +35,9 @@ export const useAuth = create<AuthState>()(
       setUser: (user: User | null) => {
         set({ user })
       },
-      walletSelected: null,
-      setWalletSelected: (walletSelected: Wallet | null) => {
-        set({ walletSelected })
-      },
       logout: () => {
         set({
           user: null,
-          walletSelected: null,
         })
       },
     }),

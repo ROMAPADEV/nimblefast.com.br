@@ -11,6 +11,8 @@ import { useAppTheme } from 'src/infrastructure/hooks'
 import type { Session, Navigation } from '@toolpad/core'
 import MapIcon from '@mui/icons-material/Map'
 import { useRouter } from 'next/navigation'
+import { useAuth } from 'src/infrastructure/providers'
+// import { User } from 'src/infrastructure/providers/zustand/types'
 
 interface Props {
   children: ReactElement
@@ -50,26 +52,18 @@ export default function RootLayout({ children, params }: Props) {
 
   const theme = useAppTheme(params.lang)
   const router = useRouter()
+  const { user } = useAuth()
 
-  const [session, setSession] = React.useState<Session | null>({
-    user: {
-      name: 'Usuario',
-      email: 'example@gmail.com',
-      image: 'https://avatars.githubusercontent.com/u/19550456',
-    },
-  })
+  // const [session, setSession] = React.useState<User>({
+  //   {
+  //     ...user,
+  //     image: 'https://avatars.githubusercontent.com/u/19550456',
+  //   },
+  // })
 
   const authentication = React.useMemo(() => {
     return {
-      signIn: () => {
-        setSession({
-          user: {
-            name: 'Usuario',
-            email: 'Usuario@example.com',
-            image: 'https://avatars.githubusercontent.com/u/19550456',
-          },
-        })
-      },
+      signIn: undefined,
       signOut: () => {
         router.push(`/${params.lang}/auth/logout`)
       },
@@ -80,7 +74,7 @@ export default function RootLayout({ children, params }: Props) {
     <html lang={params.lang}>
       <body>
         <AppProvider
-          session={session}
+          session={{ user } as unknown as Session}
           authentication={authentication}
           navigation={getNavigation(params.lang)}
           branding={{ title: 'NimbleFast' }}
