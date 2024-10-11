@@ -24,8 +24,8 @@ export default function Auth({ params }: Props) {
   const { lang } = params
   const dict = getDictionaryUseClient(lang)
 
-  const [error] = useState('')
-  const [laoding, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
   const router = useRouter()
 
@@ -36,19 +36,32 @@ export default function Auth({ params }: Props) {
     },
     validationSchema: validarFormSignin(dict),
     onSubmit: async (params: Signin) => {
+      console.log('Iniciando login com os dados:', params) // Log para ver os dados do formulário
       try {
         setLoading(true)
+
+        const response = await api.post('/auth/signin', params)
+        console.log('Resposta da API:', response) // Log para ver a resposta da API
+
         const {
-          data: { token },
-        } = await api.post('/auth/signin', params)
+          data: { token, user }, // Supondo que a API também retorne os dados do usuário
+        } = response
+
+        console.log('Token recebido:', token) // Verificando o token recebido
+        console.log('Usuário recebido:', user) // Verificando os dados do usuário
 
         setCookie('token', token)
         setCookie('refreshtoken', token)
         setCookie('NEXT_LOCALE', lang)
 
+        // Salvando os dados do usuário, se necessário
+        setCookie('user', JSON.stringify(user))
+
         router.replace(`/${lang}/`)
       } catch (error) {
+        console.error('Erro ao fazer login:', error) // Log do erro
         exibirError(error)
+        setError('Erro ao fazer login. Verifique seus dados.')
       } finally {
         setLoading(false)
       }
@@ -168,7 +181,7 @@ export default function Auth({ params }: Props) {
               <LoadingButton
                 type="submit"
                 fullWidth
-                loading={laoding}
+                loading={loading}
                 variant="contained"
                 sx={{
                   background: 'linear-gradient(to right, #6A5ACD, #483D8B)',
