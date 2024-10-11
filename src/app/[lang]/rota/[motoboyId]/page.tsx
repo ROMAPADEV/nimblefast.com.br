@@ -577,6 +577,7 @@ const RotaMotoboy: React.FC = () => {
                     flexDirection: 'column',
                     gap: 2,
                     marginTop: 3,
+                    width: '100%',
                   }}
                 >
                   <Button
@@ -604,6 +605,56 @@ const RotaMotoboy: React.FC = () => {
                   >
                     Marcar como Não Entregue
                   </Button>
+
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      flexDirection: 'row', // Coloca os botões lado a lado
+                      justifyContent: 'space-between', // Espaço uniforme entre os botões
+                      gap: 2, // Espaçamento entre os botões
+                      marginTop: 3,
+                    }}
+                  >
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      startIcon={<DirectionsIcon />}
+                      onClick={() => {
+                        const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${selectedAddress?.lat},${selectedAddress?.lng}&travelmode=driving`
+                        window.open(googleMapsUrl, '_blank')
+                      }}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        width: '100%',
+                      }}
+                    >
+                      Navegar pelo Google Maps
+                    </Button>
+
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      startIcon={<DirectionsIcon />}
+                      onClick={() => {
+                        if (currentLocation && selectedAddress) {
+                          const wazeUrl = `https://waze.com/ul?ll=${selectedAddress?.lat},${selectedAddress?.lng}&navigate=yes&from=${currentLocation?.lat},${currentLocation?.lng}`
+                          window.open(wazeUrl, '_blank')
+                        } else {
+                          console.error(
+                            'Localização atual ou endereço selecionado não disponível.',
+                          )
+                        }
+                      }}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        width: '100%',
+                      }}
+                    >
+                      Navegar pelo Waze
+                    </Button>
+                  </Box>
 
                   {/* <Button
                     variant="contained"
