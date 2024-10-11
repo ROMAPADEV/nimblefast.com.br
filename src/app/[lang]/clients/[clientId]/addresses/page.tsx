@@ -35,14 +35,15 @@ import {
 } from 'src/components'
 import { useParams } from 'next/navigation'
 import { api } from 'src/adapters'
-import { Client, Config, Package } from 'src/infrastructure/types'
+import { Client, Config, PackageData } from 'src/infrastructure/types'
+import { TableAddress } from './components/TableAddress'
 
 export default function AddressPage() {
   const theme = useTheme()
   const { clientId } = useParams()
   const [loading, setLoading] = useState(true)
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
-  const [packages, setPackages] = useState<Package[]>([])
+  const [packages, setPackages] = useState<PackageData[]>([])
   const [configs, setConfigs] = useState<Config[]>([])
   const [client, setClient] = useState<Client>()
   const [openProcessModal, setOpenProcessModal] = useState(false)
@@ -198,7 +199,9 @@ export default function AddressPage() {
                       </IconButton>
                     </TableCell>
                     <TableCell component="th" scope="row">
-                      {moment(pkg.day).format('DD/MM/YYYY')}
+                      <Typography variant="h6">
+                        {moment(pkg.day).format('DD/MM/YYYY')}
+                      </Typography>
                     </TableCell>
                   </TableRow>
                   <TableRow>
@@ -211,19 +214,10 @@ export default function AddressPage() {
                         timeout="auto"
                         unmountOnExit
                       >
-                        {pkg.items.map((item) => (
-                          <Box margin={2} key={item.id}>
-                            <Typography variant="body1">
-                              CEP: {item.postalCode}
-                            </Typography>
-                            <Typography variant="body1">
-                              Bairro: {item.neighborhood}
-                            </Typography>
-                            <Typography variant="body1">
-                              Cidade: {item.city}, Estado: {item.state}
-                            </Typography>
-                          </Box>
-                        ))}
+                        <TableAddress
+                          packages={pkg.items}
+                          updateList={getAddressesByClientsId}
+                        />
                       </Collapse>
                     </TableCell>
                   </TableRow>
