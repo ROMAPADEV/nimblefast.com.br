@@ -1,6 +1,6 @@
 export type { Signin, Signup } from './auth'
 export type { Client, Config, PolygonPath } from './Client'
-export type { Package } from './Package'
+export type { Package, PackageData } from './Package'
 export type { MotoboyCreate, Motoboy } from './Motoboy'
 export type {
   LatLng,
