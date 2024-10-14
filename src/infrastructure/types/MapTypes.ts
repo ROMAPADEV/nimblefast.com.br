@@ -5,6 +5,8 @@ export interface LatLng {
 }
 
 export interface LatLngWithAddress extends LatLng {
+  number?: string
+  street?: string
   id: number
   address?: string
   cep?: string

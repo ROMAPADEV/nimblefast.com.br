@@ -39,6 +39,7 @@ const style = {
 
 const columns: GridColDef[] = [
   { field: 'address', headerName: 'Endereço', width: 300 },
+  { field: 'number', headerName: 'Número', width: 100 }, // Coluna para número
   { field: 'lat', headerName: 'Latitude', width: 150 },
   { field: 'lng', headerName: 'Longitude', width: 150 },
 ]
@@ -128,7 +129,8 @@ export const ModalEnderecos: React.FC<ModalEnderecosProps> = ({
           <DataGrid
             rows={addresses.map((addr, index) => ({
               id: index,
-              address: addr.address,
+              address: addr.street, // Usando o campo street para o endereço
+              number: addr.number, // Usando o campo number diretamente do JSON
               lat: addr.lat,
               lng: addr.lng,
             }))}

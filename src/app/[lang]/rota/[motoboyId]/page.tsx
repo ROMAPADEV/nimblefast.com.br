@@ -522,6 +522,7 @@ const RotaMotoboy: React.FC = () => {
         </Box>
 
         {/* Modal de endereço selecionado */}
+        {/* Modal de endereço selecionado */}
         <Modal open={openModal} onClose={() => setOpenModal(false)}>
           <Box
             sx={{
@@ -547,8 +548,9 @@ const RotaMotoboy: React.FC = () => {
             {selectedAddressIndex !== null && (
               <>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {/* Exibindo o endereço e o número */}
                   <Typography variant="body1" gutterBottom>
-                    {selectedAddress?.address}
+                    {selectedAddress?.street}, Nº {selectedAddress?.number}
                   </Typography>
                   <Typography
                     variant="body2"
@@ -606,12 +608,13 @@ const RotaMotoboy: React.FC = () => {
                     Marcar como Não Entregue
                   </Button>
 
+                  {/* Navegar pelo Google Maps e Waze */}
                   <Box
                     sx={{
                       display: 'flex',
-                      flexDirection: 'row', // Coloca os botões lado a lado
-                      justifyContent: 'space-between', // Espaço uniforme entre os botões
-                      gap: 2, // Espaçamento entre os botões
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      gap: 2,
                       marginTop: 3,
                     }}
                   >
@@ -620,7 +623,7 @@ const RotaMotoboy: React.FC = () => {
                       color="primary"
                       startIcon={<DirectionsIcon />}
                       onClick={() => {
-                        const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${selectedAddress?.lat},${selectedAddress?.lng}&travelmode=driving`
+                        const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${selectedAddress?.street} ${selectedAddress?.number},${selectedAddress?.lat},${selectedAddress?.lng}&travelmode=driving`
                         window.open(googleMapsUrl, '_blank')
                       }}
                       sx={{
