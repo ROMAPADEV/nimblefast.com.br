@@ -6,6 +6,7 @@ import type {
   AuthState,
   User,
   ChangeLanguage,
+  PolygonState,
 } from './types'
 
 export const useColorMode = create<ColorModeState>()(
@@ -43,6 +44,25 @@ export const useAuth = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
+      storage: createJSONStorage(() => localStorage),
+    },
+  ),
+)
+
+export const usePolygonStore = create<PolygonState>()(
+  persist(
+    (set) => ({
+      polygons: [],
+      date: null,
+      setPolygon: (polygon) =>
+        set((state) => ({
+          polygons: [...state.polygons, polygon],
+        })),
+      clearPolygon: () => set({ polygons: [], date: null }),
+      setDate: (date) => set({ date }),
+    }),
+    {
+      name: 'polygon-storage',
       storage: createJSONStorage(() => localStorage),
     },
   ),

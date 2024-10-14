@@ -505,14 +505,14 @@ const RotaMotoboy: React.FC = () => {
         </Modal>
 
         {/* Botão "Iniciar Rota" */}
-        <Fab
+        {/* <Fab
           color="secondary"
           aria-label="start-route"
           sx={{ position: 'fixed', bottom: '70px', right: '5px' }}
           onClick={openGoogleMaps} // Abre a rota otimizada no aplicativo de mapas
         >
           <DirectionsCar />
-        </Fab>
+        </Fab> */}
 
         {/* Botão "Calcular Rota Otimizada" */}
         <Box sx={{ position: 'fixed', bottom: 20, right: 20 }}>
@@ -655,18 +655,6 @@ const RotaMotoboy: React.FC = () => {
                       Navegar pelo Waze
                     </Button>
                   </Box>
-
-                  {/* <Button
-                    variant="contained"
-                    color="primary"
-                    startIcon={<DirectionsIcon />}
-                    onClick={() => {
-                      openGoogleMapsNavigation(selectedAddress!)
-                    }}
-                    sx={{ display: 'flex', alignItems: 'center' }}
-                  >
-                    Navegar até o Local
-                  </Button> */}
                 </Box>
               </>
             )}

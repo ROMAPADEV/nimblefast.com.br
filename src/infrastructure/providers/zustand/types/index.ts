@@ -1,3 +1,5 @@
+import { PolygonPath } from 'src/infrastructure/types'
+
 export interface ColorModeState {
   colorMode: 'light' | 'dark'
   toggleColorMode: () => void
@@ -25,4 +27,12 @@ export interface AuthState {
 export interface ChangeLanguage {
   language: string
   changeLanguage: (x: string) => void
+}
+
+export interface PolygonState {
+  polygons: PolygonPath[][]
+  date: Date | null
+  setPolygon: (polygon: PolygonPath[]) => void
+  clearPolygon: () => void
+  setDate: (date: Date) => void
 }
