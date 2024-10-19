@@ -67,13 +67,19 @@ export const ModalEnderecos: React.FC<ModalEnderecosProps> = ({
 
   const handleSendRoute = async () => {
     try {
+      if (!motoboyId) {
+        alert('Por favor, selecione um motoboy.')
+        return
+      }
       if (selectedAddresses.length === 0) {
         alert('Por favor, selecione pelo menos um endereço.')
         return
       }
 
+      const packagesIds = selectedAddresses.map((item) => item.id)
+
       const params = {
-        packagesIds: selectedAddresses.map((item) => item.id),
+        packagesIds,
       }
 
       setLoad(true)
@@ -81,9 +87,8 @@ export const ModalEnderecos: React.FC<ModalEnderecosProps> = ({
 
       const motoca = motoboys.find((mt) => mt.id === motoboyId)
 
-      const queryString = `?addresses=${encodeURIComponent(JSON.stringify(selectedAddresses))}`
-      const rotaUrl = `${window.location.origin}/${lang}/rota/${motoboyId}${queryString}`
-
+      
+      const rotaUrl = `${window.location.origin}/${lang}/rota/${motoboyId}`
       const today = moment().format('DD/MM/YYYY')
       const numeroMotoboy = `+${motoca.whatsapp}`
       const mensagemWhatsApp = `Olá, ${motoca.name} \n Aqui está sua rota do dia ${today}: ${rotaUrl}`

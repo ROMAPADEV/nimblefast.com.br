@@ -37,6 +37,8 @@ import {
   List as ListIcon,
   DirectionsCar,
 } from '@mui/icons-material'
+import { api } from 'src/adapters'
+import moment from 'moment'
 
 const libraries: ('places' | 'geometry' | 'drawing')[] = [
   'places',
@@ -91,9 +93,7 @@ const RotaMotoboy: React.FC = () => {
   const [selectedAddress, setSelectedAddress] =
     useState<LatLngWithAddress | null>(null) // Endereço selecionado no clique
   const [priorityMarkers, setPriorityMarkers] = useState<number[]>([])
-  const [selectedAddressIndex, setSelectedAddressIndex] = useState<
-    number | null
-  >(null) // Índices dos marcadores prioritários (em vermelho)
+  const [selectedAddressIndex, setSelectedAddressIndex] = useState<null | number>(null) // Índices dos marcadores prioritários (em vermelho)
   const [collapseOpen, setCollapseOpen] = useState<boolean[]>([]) // Controla o estado de colapso dos endereços
   const [deliveryStatus, setDeliveryStatus] = useState<{
     [key: number]: 'entregue' | 'nao_entregue'
@@ -101,17 +101,9 @@ const RotaMotoboy: React.FC = () => {
   const [distancesTimes, setDistancesTimes] = useState<
     { distance: string; duration: string }[]
   >([]) // Distâncias e tempos calculados para cada endereço
-  const [sortBy, setSortBy] = useState<'proximity' | 'urgency'>('proximity') // Critério de ordenação
-  const [filterStatus, setFilterStatus] = useState<
-    'all' | 'entregue' | 'nao_entregue'
-  >('all')
+  const [progress, setProgress] = useState<number>(0)
 
   const searchParams = useSearchParams()
-  const totalDeliveries = addresses.length
-  const completedDeliveries = Object.values(deliveryStatus).filter(
-    (status) => status === 'entregue',
-  ).length
-  const progress = (completedDeliveries / totalDeliveries) * 100
 
   useEffect(() => {
     if (navigator.geolocation && !currentLocation) {
@@ -131,22 +123,49 @@ const RotaMotoboy: React.FC = () => {
       )
     }
 
-    const addressesParam = searchParams.get('addresses')
-    if (addressesParam) {
-      const parsedAddresses = JSON.parse(
-        decodeURIComponent(addressesParam),
-      ) as LatLngWithAddress[]
-      setAddresses(parsedAddresses || [])
-      setCollapseOpen(Array(parsedAddresses.length).fill(false)) // Inicializa o estado de colapso
+    // Chamar a API para obter os pacotes do motoboy e exibir
+    const fetchPackages = async () => {
+      try {
+        const response = await api.get(`/packages`) // Chamada para API
+        const data = response.data
+
+        // Filtrar pacotes pelo dia atual
+        const today = moment().format('YYYY-MM-DD')
+        const todayPackages = data.find((dayData: any) => dayData.day === today)
+
+        if (todayPackages) {
+          setAddresses(todayPackages.items) // Carregar os endereços do dia
+          setCollapseOpen(Array(todayPackages.items.length).fill(false)) // Inicializa o estado de colapso
+        }
+      } catch (error) {
+        console.error('Erro ao carregar pacotes:', error)
+      }
     }
-  }, [searchParams, currentLocation, isLoaded])
+
+    fetchPackages()
+  }, [currentLocation, isLoaded])
+
+
+  const updatePackageStatus = async (packageId: number, status: 'done' | 'returned') => {
+    try {
+      const data = { status }  
+      const response = await api.patch(`/packages/${packageId}/status`, data)
+    } catch (error: any) {
+      if (error.response) {
+        console.error('Erro ao atualizar status do pacote:', error.response.data)
+      } else {
+        console.error('Erro ao atualizar status do pacote:', error)
+      }
+    }
+  }
+  
 
   // Definindo a função createSquareMarkerIcon
   const createSquareMarkerIcon = useCallback(
     (number: number, color: string = '#4285F4') => {
-      if (!isLoaded || !window.google) return undefined // Verifique se o Google Maps foi carregado
+      if (!isLoaded || !window.google) return undefined // Verifica se o Google Maps foi carregado
       return {
-        path: `M 12,2 C 6.48,2 2,6.48 2,12 C 2,19 12,24 12,24 C 12,24 22,19 22,12 C 22,6.48 17.52,2 12,2 z`, // Cria um quadrado de 30x30 px
+        path: `M 12,2 C 6.48,2 2,6.48 2,12 C 2,19 12,24 12,24 C 12,24 22,19 22,12 C 22,6.48 17.52,2 12,2 z`, // Cria um ícone de marcador
         fillColor: color,
         fillOpacity: 1,
         strokeColor: '#fff',
@@ -160,33 +179,34 @@ const RotaMotoboy: React.FC = () => {
 
   // Função para calcular a rota com otimização e capturar distância e tempo
   const calculateRoute = useCallback(() => {
-    if (
-      !currentLocation ||
-      !isLoaded ||
-      !window.google ||
-      addresses.length === 0
-    )
+    if (!currentLocation || !isLoaded || !window.google || addresses.length === 0)
       return
 
     const directionsService = new google.maps.DirectionsService()
 
     const waypoints = addresses.slice(0, -1).map((address) => ({
-      location: { lat: address.lat, lng: address.lng },
+      location: { 
+        lat: Number(address.lat), 
+        lng: Number(address.lng) 
+      },
       stopover: true,
     }))
 
     const request = {
-      origin: currentLocation, // Ponto de partida é a localização atual
-      destination: {
-        lat: addresses[addresses.length - 1].lat,
-        lng: addresses[addresses.length - 1].lng,
+      origin: { 
+        lat: Number(currentLocation.lat), 
+        lng: Number(currentLocation.lng) 
+      }, // Ponto de partida
+      destination: { 
+        lat: Number(addresses[addresses.length - 1].lat), 
+        lng: Number(addresses[addresses.length - 1].lng) 
       }, // Último ponto é o destino final
       waypoints,
-      travelMode: google.maps.TravelMode.DRIVING, // Modo de viagem: carro ou motocicleta
-      optimizeWaypoints: true, // Otimiza a rota para encontrar a melhor sequência
+      travelMode: google.maps.TravelMode.DRIVING, // Modo de viagem
+      optimizeWaypoints: true, // Otimiza a rota
       drivingOptions: {
-        departureTime: new Date(), // Considera o tempo de partida como o horário atual
-        trafficModel: google.maps.TrafficModel.BEST_GUESS, // Considera o trânsito ao calcular a rota
+        departureTime: new Date(), // Horário de partida
+        trafficModel: google.maps.TrafficModel.BEST_GUESS, // Considera o trânsito
       },
     }
 
@@ -200,7 +220,6 @@ const RotaMotoboy: React.FC = () => {
         )
 
         optimizedAddresses?.push(addresses[addresses.length - 1])
-
         setAddresses(optimizedAddresses)
 
         // Extrair as distâncias e durações de cada waypoint
@@ -209,74 +228,12 @@ const RotaMotoboy: React.FC = () => {
           duration: leg.duration.text,
         }))
 
-        setDistancesTimes(newDistancesTimes) // Atualiza o estado com distâncias e tempos
+        setDistancesTimes(newDistancesTimes) // Atualiza distâncias e tempos
       } else {
         console.error('Erro ao calcular a rota:', status)
       }
     })
   }, [addresses, currentLocation, isLoaded])
-
-  const openGoogleMaps = () => {
-    if (!currentLocation || addresses.length === 0) return
-
-    const origin = `${currentLocation.lat},${currentLocation.lng}`
-    const destination = `${addresses[addresses.length - 1].lat},${addresses[addresses.length - 1].lng}`
-    const waypoints = addresses
-      .slice(0, -1)
-      .map((address) => `${address.lat},${address.lng}`)
-      .join('|')
-
-    const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}&travelmode=driving&layer=traffic`
-    window.open(mapsUrl, '_blank')
-  }
-
-  // Abre ou fecha o colapso para um endereço
-  const toggleCollapse = (index: number) => {
-    setCollapseOpen((prev) => {
-      const newState = [...prev]
-      newState[index] = !newState[index]
-      return newState
-    })
-  }
-
-  const sortAddresses = useCallback(() => {
-    if (sortBy === 'proximity') {
-      return [...addresses].sort((a, b) => {
-        const aIndex = addresses.indexOf(a)
-        const bIndex = addresses.indexOf(b)
-        return (
-          distancesTimes[aIndex]?.distance.localeCompare(
-            distancesTimes[bIndex]?.distance,
-          ) || 0
-        )
-      })
-    } else if (sortBy === 'urgency') {
-      return [...addresses].sort((a, b) => {
-        const aPriority = priorityMarkers.includes(addresses.indexOf(a)) ? 1 : 0
-        const bPriority = priorityMarkers.includes(addresses.indexOf(b)) ? 1 : 0
-        return bPriority - aPriority
-      })
-    }
-    return addresses
-  }, [addresses, distancesTimes, sortBy, priorityMarkers])
-
-  const filterAddresses = useCallback(() => {
-    if (filterStatus === 'all') return sortAddresses()
-    return sortAddresses().filter(
-      (address, index) => deliveryStatus[index] === filterStatus,
-    )
-  }, [sortAddresses, filterStatus, deliveryStatus])
-
-  // Marca o status de entrega
-  const markDeliveryStatus = (
-    index: number,
-    status: 'entregue' | 'nao_entregue',
-  ) => {
-    setDeliveryStatus((prev) => ({
-      ...prev,
-      [index]: status,
-    }))
-  }
 
   const handleMarkerClick = (address: LatLngWithAddress, index: number) => {
     setSelectedAddress(address)
@@ -284,18 +241,22 @@ const RotaMotoboy: React.FC = () => {
     setOpenModal(true)
   }
 
-  // Função para marcar o endereço como prioridade e apenas ajustar a prioridade
-  const markAsPriority = (index: number) => {
-    setPriorityMarkers((prevPriorityMarkers) => {
-      // Remove qualquer marcador anterior e define o novo índice como prioridade
-      const updatedPriorityMarkers = [...prevPriorityMarkers]
-      if (!updatedPriorityMarkers.includes(index)) {
-        updatedPriorityMarkers.push(index)
-      }
-      return updatedPriorityMarkers
-    })
-
-    setOpenModal(false) // Fecha o modal após marcar a prioridade
+  const markDeliveryStatus = (index: number, status: 'entregue' | 'nao_entregue') => {
+    const updatedStatus = status === 'entregue' ? 'done' : 'returned'
+    const packageId = addresses[index].id // Pegando apenas o ID do pacote
+  
+    updatePackageStatus(packageId, updatedStatus) // Chamando o novo endpoint
+  
+    // Atualizando o estado local
+    setDeliveryStatus((prev) => ({
+      ...prev,
+      [index]: status,
+    }))
+  
+    const completedDeliveries = Object.values(deliveryStatus).filter(
+      (status) => status === 'entregue',
+    ).length
+    setProgress((completedDeliveries / addresses.length) * 100)
   }
 
   return (
@@ -305,7 +266,7 @@ const RotaMotoboy: React.FC = () => {
         mapOptions={mapOptions}
         libraries={libraries}
       >
-        {/* Barra de progresso  */}
+        {/* Barra de progresso */}
         <Box
           sx={{
             position: 'absolute',
@@ -318,17 +279,20 @@ const RotaMotoboy: React.FC = () => {
         >
           <LinearProgress variant="determinate" value={progress} />
           <Typography variant="body2" align="center" sx={{ mt: 1 }}>
-            {completedDeliveries} de {totalDeliveries} entregas concluídas
+            {Object.values(deliveryStatus).filter(
+              (status) => status === 'entregue',
+            ).length}{' '}
+            de {addresses.length} entregas concluídas
           </Typography>
         </Box>
 
         {addresses.map((address, index) => (
           <Marker
             key={index}
-            position={{ lat: address.lat, lng: address.lng }}
-            title={address.address}
+            position={{ lat: Number(address.lat), lng: Number(address.lng) }}
+            title={address.street}
             icon={createSquareMarkerIcon(
-              1,
+              index + 1,
               deliveryStatus[index] === 'entregue' ? 'green' : 'red',
             )}
             label={{
@@ -376,144 +340,6 @@ const RotaMotoboy: React.FC = () => {
           <ListIcon />
         </Fab>
 
-        <Modal
-          open={openAddressModal}
-          onClose={() => setOpenAddressModal(false)}
-        >
-          <Box
-            sx={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              bgcolor: 'background.paper',
-              p: 4,
-              width: '80%',
-              maxHeight: '80vh',
-              overflowY: 'auto',
-              borderRadius: '8px',
-              boxShadow: 24,
-            }}
-          >
-            <Typography
-              variant="h5"
-              component="h2"
-              gutterBottom
-              style={{ color: '#333' }}
-            >
-              Lista de Entregas
-            </Typography>
-
-            <TableContainer
-              component={Paper}
-              sx={{
-                boxShadow: '0px 2px 10px rgba(0, 0, 0, 0.1)',
-                borderRadius: '8px',
-              }}
-            >
-              <Table sx={{ minWidth: 650 }}>
-                <TableHead>
-                  <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                    <TableCell>
-                      <strong>Endereço</strong>
-                    </TableCell>
-                    <TableCell align="center">
-                      <strong>Distância</strong>
-                    </TableCell>
-                    <TableCell align="center">
-                      <strong>Tempo Estimado</strong>
-                    </TableCell>
-                    <TableCell align="center">
-                      <strong>Status de Entrega</strong>
-                    </TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {addresses.map((address, index) => (
-                    <TableRow
-                      key={index}
-                      sx={{
-                        '&:nth-of-type(odd)': { backgroundColor: '#fafafa' }, // Adiciona uma cor diferente para as linhas ímpares
-                        '&:hover': { backgroundColor: '#f0f0f0' }, // Efeito de hover nas linhas
-                        borderBottom: '1px solid #e0e0e0',
-                      }}
-                    >
-                      <TableCell component="th" scope="row">
-                        {address.address}
-                      </TableCell>
-                      <TableCell align="center">
-                        {distancesTimes[index]?.distance || 'Calculando...'}
-                      </TableCell>
-                      <TableCell align="center">
-                        {distancesTimes[index]?.duration || 'Calculando...'}
-                      </TableCell>
-                      <TableCell align="center">
-                        <Box
-                          display="flex"
-                          justifyContent="center"
-                          alignItems="center"
-                        >
-                          <IconButton
-                            color={
-                              deliveryStatus[index] === 'entregue'
-                                ? 'success'
-                                : 'default'
-                            }
-                            onClick={() =>
-                              markDeliveryStatus(index, 'entregue')
-                            }
-                            sx={{
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              marginRight: 1,
-                            }}
-                          >
-                            <CheckCircle sx={{ fontSize: '24px' }} />
-                            <Typography variant="caption">Entregue</Typography>
-                          </IconButton>
-
-                          <IconButton
-                            color={
-                              deliveryStatus[index] === 'nao_entregue'
-                                ? 'error'
-                                : 'default'
-                            }
-                            onClick={() =>
-                              markDeliveryStatus(index, 'nao_entregue')
-                            }
-                            sx={{
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              marginLeft: 1,
-                            }}
-                          >
-                            <Cancel sx={{ fontSize: '24px' }} />
-                            <Typography variant="caption">
-                              Não Entregue
-                            </Typography>
-                          </IconButton>
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Box>
-        </Modal>
-
-        {/* Botão "Iniciar Rota" */}
-        {/* <Fab
-          color="secondary"
-          aria-label="start-route"
-          sx={{ position: 'fixed', bottom: '70px', right: '5px' }}
-          onClick={openGoogleMaps} // Abre a rota otimizada no aplicativo de mapas
-        >
-          <DirectionsCar />
-        </Fab> */}
-
         {/* Botão "Calcular Rota Otimizada" */}
         <Box sx={{ position: 'fixed', bottom: 20, right: 20 }}>
           <Button variant="contained" color="primary" onClick={calculateRoute}>
@@ -521,7 +347,6 @@ const RotaMotoboy: React.FC = () => {
           </Button>
         </Box>
 
-        {/* Modal de endereço selecionado */}
         {/* Modal de endereço selecionado */}
         <Modal open={openModal} onClose={() => setOpenModal(false)}>
           <Box
@@ -548,7 +373,6 @@ const RotaMotoboy: React.FC = () => {
             {selectedAddressIndex !== null && (
               <>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  {/* Exibindo o endereço e o número */}
                   <Typography variant="body1" gutterBottom>
                     {selectedAddress?.street}, Nº {selectedAddress?.number}
                   </Typography>
@@ -572,7 +396,6 @@ const RotaMotoboy: React.FC = () => {
                   </Typography>
                 </Box>
 
-                {/* Botões de Ação com Ícones */}
                 <Box
                   sx={{
                     display: 'flex',
@@ -608,7 +431,6 @@ const RotaMotoboy: React.FC = () => {
                     Marcar como Não Entregue
                   </Button>
 
-                  {/* Navegar pelo Google Maps e Waze */}
                   <Box
                     sx={{
                       display: 'flex',
