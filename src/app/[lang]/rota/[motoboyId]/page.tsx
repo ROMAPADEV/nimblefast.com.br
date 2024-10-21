@@ -170,7 +170,7 @@ const RotaMotoboy: React.FC = () => {
 
     const directionsService = new google.maps.DirectionsService()
 
-    const waypoints = addresses.slice(0, -1).map((address) => ({
+    const waypoints = addresses.map((address) => ({
       location: { lat: address.lat, lng: address.lng },
       stopover: true,
     }))
@@ -193,15 +193,6 @@ const RotaMotoboy: React.FC = () => {
     directionsService.route(request, (result, status) => {
       if (status === google.maps.DirectionsStatus.OK && result) {
         setDirections(result) // Armazena a rota gerada
-
-        const waypointsOrder = result?.routes[0].waypoint_order
-        const optimizedAddresses = waypointsOrder?.map(
-          (index: number) => addresses[index],
-        )
-
-        optimizedAddresses?.push(addresses[addresses.length - 1])
-
-        setAddresses(optimizedAddresses)
 
         // Extrair as distâncias e durações de cada waypoint
         const newDistancesTimes = result.routes[0].legs.map((leg: any) => ({
