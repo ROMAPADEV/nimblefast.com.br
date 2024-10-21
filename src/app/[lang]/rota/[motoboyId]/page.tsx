@@ -37,6 +37,8 @@ import {
   List as ListIcon,
   DirectionsCar,
 } from '@mui/icons-material'
+import { api } from 'src/adapters'
+import moment from 'moment'
 
 const libraries: ('places' | 'geometry' | 'drawing')[] = [
   'places',
@@ -48,7 +50,7 @@ const FALLBACK_LOCATION = {
   id: 999999999999,
   lat: -23.652834,
   lng: -46.53266,
-  address: 'Depósito Central',
+  address: 'Depósito',
 }
 
 const mapOptions = {
@@ -101,17 +103,9 @@ const RotaMotoboy: React.FC = () => {
   const [distancesTimes, setDistancesTimes] = useState<
     { distance: string; duration: string }[]
   >([]) // Distâncias e tempos calculados para cada endereço
-  const [sortBy, setSortBy] = useState<'proximity' | 'urgency'>('proximity') // Critério de ordenação
-  const [filterStatus, setFilterStatus] = useState<
-    'all' | 'entregue' | 'nao_entregue'
-  >('all')
+  const [progress, setProgress] = useState<number>(0)
 
   const searchParams = useSearchParams()
-  const totalDeliveries = addresses.length
-  const completedDeliveries = Object.values(deliveryStatus).filter(
-    (status) => status === 'entregue',
-  ).length
-  const progress = (completedDeliveries / totalDeliveries) * 100
 
   useEffect(() => {
     if (navigator.geolocation && !currentLocation) {
@@ -144,9 +138,9 @@ const RotaMotoboy: React.FC = () => {
   // Definindo a função createSquareMarkerIcon
   const createSquareMarkerIcon = useCallback(
     (number: number, color: string = '#4285F4') => {
-      if (!isLoaded || !window.google) return undefined // Verifique se o Google Maps foi carregado
+      if (!isLoaded || !window.google) return undefined // Verifica se o Google Maps foi carregado
       return {
-        path: `M 12,2 C 6.48,2 2,6.48 2,12 C 2,19 12,24 12,24 C 12,24 22,19 22,12 C 22,6.48 17.52,2 12,2 z`, // Cria um quadrado de 30x30 px
+        path: `M 12,2 C 6.48,2 2,6.48 2,12 C 2,19 12,24 12,24 C 12,24 22,19 22,12 C 22,6.48 17.52,2 12,2 z`, // Cria um ícone de marcador
         fillColor: color,
         fillOpacity: 1,
         strokeColor: '#fff',
@@ -182,11 +176,11 @@ const RotaMotoboy: React.FC = () => {
         lng: addresses[addresses.length - 1].lng,
       }, // Último ponto é o destino final
       waypoints,
-      travelMode: google.maps.TravelMode.DRIVING, // Modo de viagem: carro ou motocicleta
-      optimizeWaypoints: true, // Otimiza a rota para encontrar a melhor sequência
+      travelMode: google.maps.TravelMode.DRIVING, // Modo de viagem
+      optimizeWaypoints: true, // Otimiza a rota
       drivingOptions: {
-        departureTime: new Date(), // Considera o tempo de partida como o horário atual
-        trafficModel: google.maps.TrafficModel.BEST_GUESS, // Considera o trânsito ao calcular a rota
+        departureTime: new Date(), // Horário de partida
+        trafficModel: google.maps.TrafficModel.BEST_GUESS, // Considera o trânsito
       },
     }
 
@@ -200,7 +194,7 @@ const RotaMotoboy: React.FC = () => {
           duration: leg.duration.text,
         }))
 
-        setDistancesTimes(newDistancesTimes) // Atualiza o estado com distâncias e tempos
+        setDistancesTimes(newDistancesTimes) // Atualiza distâncias e tempos
       } else {
         console.error('Erro ao calcular a rota:', status)
       }
@@ -296,7 +290,7 @@ const RotaMotoboy: React.FC = () => {
         mapOptions={mapOptions}
         libraries={libraries}
       >
-        {/* Barra de progresso  */}
+        {/* Barra de progresso */}
         <Box
           sx={{
             position: 'absolute',
@@ -316,10 +310,10 @@ const RotaMotoboy: React.FC = () => {
         {addresses.map((address, index) => (
           <Marker
             key={index}
-            position={{ lat: address.lat, lng: address.lng }}
-            title={address.address}
+            position={{ lat: Number(address.lat), lng: Number(address.lng) }}
+            title={address.street}
             icon={createSquareMarkerIcon(
-              1,
+              index + 1,
               deliveryStatus[index] === 'entregue' ? 'green' : 'red',
             )}
             label={{
@@ -367,144 +361,6 @@ const RotaMotoboy: React.FC = () => {
           <ListIcon />
         </Fab>
 
-        <Modal
-          open={openAddressModal}
-          onClose={() => setOpenAddressModal(false)}
-        >
-          <Box
-            sx={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              bgcolor: 'background.paper',
-              p: 4,
-              width: '80%',
-              maxHeight: '80vh',
-              overflowY: 'auto',
-              borderRadius: '8px',
-              boxShadow: 24,
-            }}
-          >
-            <Typography
-              variant="h5"
-              component="h2"
-              gutterBottom
-              style={{ color: '#333' }}
-            >
-              Lista de Entregas
-            </Typography>
-
-            <TableContainer
-              component={Paper}
-              sx={{
-                boxShadow: '0px 2px 10px rgba(0, 0, 0, 0.1)',
-                borderRadius: '8px',
-              }}
-            >
-              <Table sx={{ minWidth: 650 }}>
-                <TableHead>
-                  <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                    <TableCell>
-                      <strong>Endereço</strong>
-                    </TableCell>
-                    <TableCell align="center">
-                      <strong>Distância</strong>
-                    </TableCell>
-                    <TableCell align="center">
-                      <strong>Tempo Estimado</strong>
-                    </TableCell>
-                    <TableCell align="center">
-                      <strong>Status de Entrega</strong>
-                    </TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {addresses.map((address, index) => (
-                    <TableRow
-                      key={index}
-                      sx={{
-                        '&:nth-of-type(odd)': { backgroundColor: '#fafafa' }, // Adiciona uma cor diferente para as linhas ímpares
-                        '&:hover': { backgroundColor: '#f0f0f0' }, // Efeito de hover nas linhas
-                        borderBottom: '1px solid #e0e0e0',
-                      }}
-                    >
-                      <TableCell component="th" scope="row">
-                        {address.address}
-                      </TableCell>
-                      <TableCell align="center">
-                        {distancesTimes[index]?.distance || 'Calculando...'}
-                      </TableCell>
-                      <TableCell align="center">
-                        {distancesTimes[index]?.duration || 'Calculando...'}
-                      </TableCell>
-                      <TableCell align="center">
-                        <Box
-                          display="flex"
-                          justifyContent="center"
-                          alignItems="center"
-                        >
-                          <IconButton
-                            color={
-                              deliveryStatus[index] === 'entregue'
-                                ? 'success'
-                                : 'default'
-                            }
-                            onClick={() =>
-                              markDeliveryStatus(index, 'entregue')
-                            }
-                            sx={{
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              marginRight: 1,
-                            }}
-                          >
-                            <CheckCircle sx={{ fontSize: '24px' }} />
-                            <Typography variant="caption">Entregue</Typography>
-                          </IconButton>
-
-                          <IconButton
-                            color={
-                              deliveryStatus[index] === 'nao_entregue'
-                                ? 'error'
-                                : 'default'
-                            }
-                            onClick={() =>
-                              markDeliveryStatus(index, 'nao_entregue')
-                            }
-                            sx={{
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              marginLeft: 1,
-                            }}
-                          >
-                            <Cancel sx={{ fontSize: '24px' }} />
-                            <Typography variant="caption">
-                              Não Entregue
-                            </Typography>
-                          </IconButton>
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Box>
-        </Modal>
-
-        {/* Botão "Iniciar Rota" */}
-        {/* <Fab
-          color="secondary"
-          aria-label="start-route"
-          sx={{ position: 'fixed', bottom: '70px', right: '5px' }}
-          onClick={openGoogleMaps} // Abre a rota otimizada no aplicativo de mapas
-        >
-          <DirectionsCar />
-        </Fab> */}
-
         {/* Botão "Calcular Rota Otimizada" */}
         <Box sx={{ position: 'fixed', bottom: 20, right: 20 }}>
           <Button variant="contained" color="primary" onClick={calculateRoute}>
@@ -512,7 +368,6 @@ const RotaMotoboy: React.FC = () => {
           </Button>
         </Box>
 
-        {/* Modal de endereço selecionado */}
         {/* Modal de endereço selecionado */}
         <Modal open={openModal} onClose={() => setOpenModal(false)}>
           <Box
@@ -539,7 +394,6 @@ const RotaMotoboy: React.FC = () => {
             {selectedAddressIndex !== null && (
               <>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  {/* Exibindo o endereço e o número */}
                   <Typography variant="body1" gutterBottom>
                     {selectedAddress?.street}, Nº {selectedAddress?.number}
                   </Typography>
@@ -563,7 +417,6 @@ const RotaMotoboy: React.FC = () => {
                   </Typography>
                 </Box>
 
-                {/* Botões de Ação com Ícones */}
                 <Box
                   sx={{
                     display: 'flex',
@@ -599,7 +452,6 @@ const RotaMotoboy: React.FC = () => {
                     Marcar como Não Entregue
                   </Button>
 
-                  {/* Navegar pelo Google Maps e Waze */}
                   <Box
                     sx={{
                       display: 'flex',

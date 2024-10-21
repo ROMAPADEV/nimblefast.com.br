@@ -71,6 +71,10 @@ export const ModalEnderecos: React.FC<ModalEnderecosProps> = ({
         alert('Por favor, selecione um motoboy.')
         return
       }
+      if (!motoboyId) {
+        alert('Por favor, selecione um motoboy.')
+        return
+      }
       if (selectedAddresses.length === 0) {
         alert('Por favor, selecione pelo menos um endereço.')
         return
@@ -78,7 +82,10 @@ export const ModalEnderecos: React.FC<ModalEnderecosProps> = ({
 
       const packagesIds = selectedAddresses.map((item) => item.id)
 
+      const packagesIds = selectedAddresses.map((item) => item.id)
+
       const params = {
+        packagesIds,
         packagesIds,
       }
 
