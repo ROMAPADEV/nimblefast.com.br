@@ -94,7 +94,7 @@ const RotaMotoboy: React.FC = () => {
     useState<LatLngWithAddress | null>(null) // Endereço selecionado no clique
   const [priorityMarkers, setPriorityMarkers] = useState<number[]>([])
   const [selectedAddressIndex, setSelectedAddressIndex] = useState<
-    number | null
+    null | number
   >(null) // Índices dos marcadores prioritários (em vermelho)
   const [collapseOpen, setCollapseOpen] = useState<boolean[]>([]) // Controla o estado de colapso dos endereços
   const [deliveryStatus, setDeliveryStatus] = useState<{
@@ -125,15 +125,46 @@ const RotaMotoboy: React.FC = () => {
       )
     }
 
-    const addressesParam = searchParams.get('addresses')
-    if (addressesParam) {
-      const parsedAddresses = JSON.parse(
-        decodeURIComponent(addressesParam),
-      ) as LatLngWithAddress[]
-      setAddresses(parsedAddresses || [])
-      setCollapseOpen(Array(parsedAddresses.length).fill(false)) // Inicializa o estado de colapso
+    // Chamar a API para obter os pacotes do motoboy e exibir
+    const fetchPackages = async () => {
+      try {
+        const response = await api.get(`/packages`) // Chamada para API
+        const data = response.data
+
+        // Filtrar pacotes pelo dia atual
+        const today = moment().format('YYYY-MM-DD')
+        const todayPackages = data.find((dayData: any) => dayData.day === today)
+
+        if (todayPackages) {
+          setAddresses(todayPackages.items) // Carregar os endereços do dia
+          setCollapseOpen(Array(todayPackages.items.length).fill(false)) // Inicializa o estado de colapso
+        }
+      } catch (error) {
+        console.error('Erro ao carregar pacotes:', error)
+      }
     }
-  }, [searchParams, currentLocation, isLoaded])
+
+    fetchPackages()
+  }, [currentLocation, isLoaded])
+
+  const updatePackageStatus = async (
+    packageId: number,
+    status: 'done' | 'returned',
+  ) => {
+    try {
+      const data = { status }
+      const response = await api.patch(`/packages/${packageId}/status`, data)
+    } catch (error: any) {
+      if (error.response) {
+        console.error(
+          'Erro ao atualizar status do pacote:',
+          error.response.data,
+        )
+      } else {
+        console.error('Erro ao atualizar status do pacote:', error)
+      }
+    }
+  }
 
   // Definindo a função createSquareMarkerIcon
   const createSquareMarkerIcon = useCallback(
@@ -164,16 +195,22 @@ const RotaMotoboy: React.FC = () => {
 
     const directionsService = new google.maps.DirectionsService()
 
-    const waypoints = addresses.map((address) => ({
-      location: { lat: address.lat, lng: address.lng },
+    const waypoints = addresses.slice(0, -1).map((address) => ({
+      location: {
+        lat: Number(address.lat),
+        lng: Number(address.lng),
+      },
       stopover: true,
     }))
 
     const request = {
-      origin: currentLocation, // Ponto de partida é a localização atual
+      origin: {
+        lat: Number(currentLocation.lat),
+        lng: Number(currentLocation.lng),
+      }, // Ponto de partida
       destination: {
-        lat: addresses[addresses.length - 1].lat,
-        lng: addresses[addresses.length - 1].lng,
+        lat: Number(addresses[addresses.length - 1].lat),
+        lng: Number(addresses[addresses.length - 1].lng),
       }, // Último ponto é o destino final
       waypoints,
       travelMode: google.maps.TravelMode.DRIVING, // Modo de viagem
@@ -188,6 +225,14 @@ const RotaMotoboy: React.FC = () => {
       if (status === google.maps.DirectionsStatus.OK && result) {
         setDirections(result) // Armazena a rota gerada
 
+        const waypointsOrder = result?.routes[0].waypoint_order
+        const optimizedAddresses = waypointsOrder?.map(
+          (index: number) => addresses[index],
+        )
+
+        optimizedAddresses?.push(addresses[addresses.length - 1])
+        setAddresses(optimizedAddresses)
+
         // Extrair as distâncias e durações de cada waypoint
         const newDistancesTimes = result.routes[0].legs.map((leg: any) => ({
           distance: leg.distance.text,
@@ -201,86 +246,31 @@ const RotaMotoboy: React.FC = () => {
     })
   }, [addresses, currentLocation, isLoaded])
 
-  const openGoogleMaps = () => {
-    if (!currentLocation || addresses.length === 0) return
-
-    const origin = `${currentLocation.lat},${currentLocation.lng}`
-    const destination = `${addresses[addresses.length - 1].lat},${addresses[addresses.length - 1].lng}`
-    const waypoints = addresses
-      .slice(0, -1)
-      .map((address) => `${address.lat},${address.lng}`)
-      .join('|')
-
-    const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}&travelmode=driving&layer=traffic`
-    window.open(mapsUrl, '_blank')
-  }
-
-  // Abre ou fecha o colapso para um endereço
-  const toggleCollapse = (index: number) => {
-    setCollapseOpen((prev) => {
-      const newState = [...prev]
-      newState[index] = !newState[index]
-      return newState
-    })
-  }
-
-  const sortAddresses = useCallback(() => {
-    if (sortBy === 'proximity') {
-      return [...addresses].sort((a, b) => {
-        const aIndex = addresses.indexOf(a)
-        const bIndex = addresses.indexOf(b)
-        return (
-          distancesTimes[aIndex]?.distance.localeCompare(
-            distancesTimes[bIndex]?.distance,
-          ) || 0
-        )
-      })
-    } else if (sortBy === 'urgency') {
-      return [...addresses].sort((a, b) => {
-        const aPriority = priorityMarkers.includes(addresses.indexOf(a)) ? 1 : 0
-        const bPriority = priorityMarkers.includes(addresses.indexOf(b)) ? 1 : 0
-        return bPriority - aPriority
-      })
-    }
-    return addresses
-  }, [addresses, distancesTimes, sortBy, priorityMarkers])
-
-  const filterAddresses = useCallback(() => {
-    if (filterStatus === 'all') return sortAddresses()
-    return sortAddresses().filter(
-      (address, index) => deliveryStatus[index] === filterStatus,
-    )
-  }, [sortAddresses, filterStatus, deliveryStatus])
-
-  // Marca o status de entrega
-  const markDeliveryStatus = (
-    index: number,
-    status: 'entregue' | 'nao_entregue',
-  ) => {
-    setDeliveryStatus((prev) => ({
-      ...prev,
-      [index]: status,
-    }))
-  }
-
   const handleMarkerClick = (address: LatLngWithAddress, index: number) => {
     setSelectedAddress(address)
     setSelectedAddressIndex(index)
     setOpenModal(true)
   }
 
-  // Função para marcar o endereço como prioridade e apenas ajustar a prioridade
-  const markAsPriority = (index: number) => {
-    setPriorityMarkers((prevPriorityMarkers) => {
-      // Remove qualquer marcador anterior e define o novo índice como prioridade
-      const updatedPriorityMarkers = [...prevPriorityMarkers]
-      if (!updatedPriorityMarkers.includes(index)) {
-        updatedPriorityMarkers.push(index)
-      }
-      return updatedPriorityMarkers
-    })
+  const markDeliveryStatus = (
+    index: number,
+    status: 'entregue' | 'nao_entregue',
+  ) => {
+    const updatedStatus = status === 'entregue' ? 'done' : 'returned'
+    const packageId = addresses[index].id // Pegando apenas o ID do pacote
 
-    setOpenModal(false) // Fecha o modal após marcar a prioridade
+    updatePackageStatus(packageId, updatedStatus) // Chamando o novo endpoint
+
+    // Atualizando o estado local
+    setDeliveryStatus((prev) => ({
+      ...prev,
+      [index]: status,
+    }))
+
+    const completedDeliveries = Object.values(deliveryStatus).filter(
+      (status) => status === 'entregue',
+    ).length
+    setProgress((completedDeliveries / addresses.length) * 100)
   }
 
   return (
@@ -303,7 +293,12 @@ const RotaMotoboy: React.FC = () => {
         >
           <LinearProgress variant="determinate" value={progress} />
           <Typography variant="body2" align="center" sx={{ mt: 1 }}>
-            {completedDeliveries} de {totalDeliveries} entregas concluídas
+            {
+              Object.values(deliveryStatus).filter(
+                (status) => status === 'entregue',
+              ).length
+            }{' '}
+            de {addresses.length} entregas concluídas
           </Typography>
         </Box>
 

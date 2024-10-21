@@ -82,10 +82,7 @@ export const ModalEnderecos: React.FC<ModalEnderecosProps> = ({
 
       const packagesIds = selectedAddresses.map((item) => item.id)
 
-      const packagesIds = selectedAddresses.map((item) => item.id)
-
       const params = {
-        packagesIds,
         packagesIds,
       }
 
