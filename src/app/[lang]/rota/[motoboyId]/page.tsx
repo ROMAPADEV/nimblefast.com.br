@@ -50,7 +50,7 @@ const FALLBACK_LOCATION = {
   id: 999999999999,
   lat: -23.652834,
   lng: -46.53266,
-  address: 'Depósito Central',
+  address: 'Depósito',
 }
 
 const mapOptions = {
