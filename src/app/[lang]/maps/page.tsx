@@ -12,12 +12,12 @@ import { MapaBase, ModalEnderecos } from 'src/components'
 import { api, exibirError } from 'src/adapters'
 import type {
   LatLngWithAddress,
-  PolygonPath,
   Motoboy,
   Address,
 } from 'src/infrastructure/types'
 import { CircularProgress } from '@mui/material'
 import { type Locale } from 'src/infrastructure/providers'
+import { usePolygonStore } from 'src/infrastructure/providers/zustand/store'
 
 const BASE_LOCATION: LatLngWithAddress = {
   id: 9999999999999,
@@ -35,8 +35,9 @@ interface Props {
 const Maps = ({ params }: Props) => {
   const { lang } = params
 
+  const { polygons, date, setPolygon, setDate, clearPolygon } =
+    usePolygonStore()
   const [addresses, setAddresses] = useState<LatLngWithAddress[]>([])
-  const [polygons, setPolygons] = useState<PolygonPath[][]>([])
   const [selectedAddresses, setSelectedAddresses] = useState<
     LatLngWithAddress[]
   >([])
@@ -79,7 +80,9 @@ const Maps = ({ params }: Props) => {
       strokeColor: 'red',
     })
 
-    setPolygons((prevPolygons) => [...prevPolygons, polygonPath])
+    console.log('poligono', polygonPath)
+    setPolygon(polygonPath)
+    setDate(new Date())
 
     const markersInsidePolygon = addresses.filter((address) => {
       const latLng = new google.maps.LatLng(address.lat, address.lng)
@@ -110,6 +113,21 @@ const Maps = ({ params }: Props) => {
   )
 
   useEffect(() => {
+    if (!date) {
+      return
+    }
+
+    const currentDate = new Date()
+    const polygonDate = new Date(date)
+
+    if (polygonDate.getDate() !== currentDate.getDate()) {
+      console.log('Polígono expirado, limpando...')
+      clearPolygon()
+      setDate(null)
+    }
+  }, [date, clearPolygon, setDate])
+
+  useEffect(() => {
     if (isLoaded) {
       getAddressesAndMotoboys()
     }
@@ -118,8 +136,6 @@ const Maps = ({ params }: Props) => {
   if (!isLoaded) {
     return <CircularProgress />
   }
-
-  console.log('address fora', addresses)
 
   return (
     <MapaBase center={BASE_LOCATION} libraries={['drawing', 'geometry']}>
