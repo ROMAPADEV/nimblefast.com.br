@@ -16,7 +16,11 @@ import {
   MenuItem,
   Snackbar,
   Alert,
+  Divider,
+  IconButton,
+  LinearProgress,
 } from '@mui/material'
+import CloseIcon from '@mui/icons-material/Close'
 import { DataGrid, GridColDef } from '@mui/x-data-grid'
 import { usePDFJS } from 'src/infrastructure/hooks'
 import axios from 'axios'
@@ -24,6 +28,7 @@ import CloudUpload from '@mui/icons-material/CloudUpload'
 import LocationOn from '@mui/icons-material/LocationOn'
 import { Address, Config } from 'src/infrastructure/types'
 import { api, exibirError } from 'src/adapters'
+import Tesseract from 'tesseract.js'
 
 interface ProcessPDFModalProps {
   open: boolean
@@ -42,6 +47,7 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
   const [fileName, setFileName] = useState<string>('')
   const [addresses, setAddresses] = useState<Address[]>([])
   const [loadingCoordinates, setLoadingCoordinates] = useState<boolean>(false)
+  const [progress, setProgress] = useState<number>(0)
   const [snackbarMessage, setSnackbarMessage] = useState({
     open: false,
     message: '',
@@ -145,6 +151,29 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
     )
   }
 
+  // Função para atribuir o valor padrão do tipo ao endereço se não tiver sido definido ainda
+  const setDefaultTypeForAddresses = (addresses: Address[]) => {
+    return addresses.map((address) => {
+      // Se não houver um valor em `tipo`, definimos a primeira opção disponível
+      if (!address.tipo && configs.length > 0) {
+        address.tipo = configs[0].name // Atribui o nome da primeira opção do Select
+      }
+      return address
+    })
+  }
+
+  const renderProgressBar = () => (
+    <LinearProgress
+      variant="determinate"
+      value={progress}
+      sx={{
+        height: 10,
+        background: 'linear-gradient(to right, #3f51b5, #2196f3)', // Gradient
+        borderRadius: '5px',
+      }}
+    />
+  )
+
   // Normaliza e limpa o texto extraído
   const normalizeText = (text: string): string => {
     console.log('Normalizando texto:', text)
@@ -155,6 +184,8 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
       .replace(/(CEP:\s*\d{5}-\d{3})/g, '\n$1') // Coloca cada CEP em uma nova linha
       .replace(/(Endereço:\s*[^\n]+)/g, '\n$1') // Coloca Endereço em nova linha
       .replace(/(Bairro:\s*[^\n]+)/g, '\n$1') // Coloca Bairro em nova linha
+      .replace(/\s*NO\b/g, '') // Remove o sufixo "NO" após o número
+      .replace(/\s*\/\s*$/, '')
       .replace(/Complemento:\s*[^\n]*/, '') // Remover complemento se estiver vazio
       .replace(/Destinatario:\s*[^\n]*/, '') // Remove o campo "Destinatario"
       .replace(/REMETENTE:\s*[^\n]*/, '') // Remove o campo "REMETENTE"
@@ -163,7 +194,62 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
       .trim() // Remover espaços nas extremidades
   }
 
+  const extractShopeeData = (text: string): Address[] => {
+    const addressList: Address[] = []
+
+    // Regex específico para detectar padrões da Shopee
+    const cepRegex = /CEP:\s*(\d{5}-\d{3})/g
+    const enderecoRegex =
+      /(Rua|Avenida|Travessa|Alameda)\s*([^\n,]+),\s*(\d+[A-Za-z]*)/g // Ajuste para capturar o tipo de logradouro
+    const bairroRegex = /Bairro:\s*([^\n]+)/g
+    const destinatarioRegex = /DESTINATÁRIO\s*:\s*([^\n]+)/g
+
+    let currentAddress: Address = {
+      id: 1,
+      postalCode: '',
+      street: '',
+      neighborhood: '',
+      city: 'São Paulo', // Shopee geralmente será em São Paulo
+      lat: 0,
+      lng: 0,
+      string: '',
+      state: 'SP', // Shopee geralmente será em SP
+      number: '',
+      tipo: 'Shopee',
+    }
+    let id = 1
+
+    // Usar regex para detectar cada componente do endereço
+    const cepMatch = cepRegex.exec(text)
+    const enderecoMatch = enderecoRegex.exec(text)
+    const bairroMatch = bairroRegex.exec(text)
+    const destinatarioMatch = destinatarioRegex.exec(text)
+
+    if (cepMatch) currentAddress.postalCode = cepMatch[1]
+    if (enderecoMatch) {
+      // Captura o tipo de logradouro (Rua, Avenida, etc.) e o nome da rua
+      currentAddress.street = `${enderecoMatch[1]} ${enderecoMatch[2]}`.trim()
+      currentAddress.number = enderecoMatch[3] // Captura o número do endereço
+    }
+    if (bairroMatch) {
+      // Remove qualquer ":" do final do nome do bairro
+      currentAddress.neighborhood = bairroMatch[1].replace(':', '').trim()
+    }
+    if (destinatarioMatch) currentAddress.string = destinatarioMatch[1]
+
+    if (currentAddress.postalCode && currentAddress.street) {
+      currentAddress.id = id++
+      addressList.push(currentAddress)
+    }
+
+    return addressList
+  }
+
   const extractAddresses = (text: string): Address[] => {
+    if (text.includes('SHOPEE') || text.includes('DANFE SIMPLIFICADO')) {
+      console.log('Layout Shopee detectado, extraindo dados específicos...')
+      return extractShopeeData(text) // Chama a extração específica da Shopee
+    }
     const addressList: Address[] = []
     const lines = text.split('\n')
 
@@ -268,6 +354,48 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
     return addressList
   }
 
+  const processImage = async (file: File) => {
+    try {
+      const { data } = await Tesseract.recognize(file, 'por', {
+        logger: (m) => {
+          console.log(m)
+          if (m.status === 'recognizing text') {
+            setProgress(Math.floor(m.progress * 100))
+          }
+        },
+      })
+      const extractedText = data.text
+      let foundAddresses = extractAddresses(extractedText).map((address) => ({
+        ...address,
+        id: generateUniqueId(), // Atribui um ID único para cada endereço
+      }))
+
+      foundAddresses = setDefaultTypeForAddresses(foundAddresses)
+
+      setAddresses((prevAddresses) => {
+        const newAddresses = foundAddresses.filter((newAddress) => {
+          const normalize = (str: string) => str.trim().toLowerCase()
+          return !prevAddresses.some((existingAddress) => {
+            return (
+              normalize(existingAddress.postalCode) ===
+                normalize(newAddress.postalCode) &&
+              normalize(existingAddress.street) ===
+                normalize(newAddress.street) &&
+              normalize(existingAddress.number) ===
+                normalize(newAddress.number) &&
+              normalize(existingAddress.neighborhood) ===
+                normalize(newAddress.neighborhood)
+            )
+          })
+        })
+
+        return [...prevAddresses, ...newAddresses]
+      })
+    } catch (error) {
+      console.error('Erro ao processar a imagem:', error)
+    }
+  }
+
   usePDFJS(
     async (pdfjs) => {
       if (!selectedFile) return
@@ -306,12 +434,29 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
   )
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file && file.type === 'application/pdf') {
-      setSelectedFile(file)
-      setFileName(file.name)
-    } else {
-      alert('Por favor, selecione um arquivo PDF válido.')
+    const files = event.target.files // Pega todos os arquivos selecionados
+    if (files && files.length > 0) {
+      const fileList = Array.from(files) // Converte para um array para facilitar a manipulação
+      let fileNames = '' // Variável para armazenar todos os nomes dos arquivos
+
+      fileList.forEach((file) => {
+        const fileType = file.type
+
+        if (fileType === 'application/pdf') {
+          // Lógica para processar PDF
+          setSelectedFile(file) // Processa o arquivo PDF
+          fileNames += `${file.name}, ` // Adiciona o nome do arquivo à lista
+        } else if (fileType.startsWith('image/')) {
+          // Lógica para processar imagem
+          processImage(file) // Processa o arquivo de imagem
+          fileNames += `${file.name}, ` // Adiciona o nome do arquivo à lista
+        } else {
+          alert('Por favor, selecione um arquivo PDF ou imagem válida.')
+        }
+      })
+
+      // Remove a vírgula extra no final e atualiza os nomes dos arquivos
+      setFileName(fileNames.slice(0, -2))
     }
   }
 
@@ -347,6 +492,11 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
     { field: 'lng', headerName: 'Longitude', width: 150 },
   ]
 
+  const generateUniqueId = (() => {
+    let counter = 1
+    return () => counter++
+  })()
+
   return (
     <Modal
       open={open}
@@ -359,30 +509,51 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          padding: 4,
+          padding: 3,
           backgroundColor: (theme) =>
-            theme.palette.mode === 'dark' ? '#1E1E1E' : '#f4f6f8', // Cor de fundo clara
-          maxWidth: 1500,
-          maxHeight: 1000,
-          borderRadius: 2,
-          boxShadow: 24,
+            theme.palette.mode === 'dark' ? '#1E1E1E' : '#f4f6f8',
+          borderRadius: 4,
+          boxShadow: '0px 8px 30px rgba(0, 0, 0, 0.15)',
+          maxWidth: 1200,
+          maxHeight: 900,
+          overflowY: 'auto',
         }}
       >
+        {progress > 0 && progress < 100 && (
+          <Box sx={{ marginBottom: 2 }}>{renderProgressBar()}</Box>
+        )}
+        <IconButton
+          aria-label="close"
+          onClick={onClose}
+          sx={{
+            position: 'absolute',
+            right: 16,
+            top: 16,
+            color: '#757575',
+          }}
+        >
+          <CloseIcon />
+        </IconButton>
         <Typography
           variant="h5"
-          gutterBottom
           align="center"
-          sx={{ color: '#3f51b5', fontWeight: 'bold' }}
+          sx={{
+            color: '#3f51b5',
+            fontWeight: 600,
+            marginBottom: 2, // Evita a quebra de linha
+          }}
         >
-          Processar Endereços Pdf
+          Faça upload dos arquivos
         </Typography>
-
+        <Divider sx={{ marginBottom: 4 }} />
         <Box
           sx={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            marginBottom: 2,
+            marginBottom: 3,
+            flexDirection: 'column',
+            gap: 2,
           }}
         >
           <Button
@@ -391,21 +562,30 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
             startIcon={<CloudUpload />} // Ícone de upload
             component="label"
             sx={{
-              padding: '10px 20px',
+              padding: '10px 24px',
               backgroundColor: '#3f51b5',
               '&:hover': { backgroundColor: '#000616ab' },
+              borderRadius: '12px',
+              fontWeight: 500,
+              fontSize: '14px',
+              boxShadow: '0px 2px 8px rgba(63, 81, 181, 0.2)',
+              transition: 'background-color 0.3s ease, transform 0.3s ease',
             }}
           >
-            Escolher Arquivo
+            Escolher Arquivos
             <input
               type="file"
-              accept="application/pdf"
+              accept="application/pdf, image/*"
               hidden
+              multiple
               onChange={handleFileChange}
             />
           </Button>
-          <Typography variant="body1" sx={{ marginLeft: 2, color: '#757575' }}>
-            {fileName || 'Nenhum arquivo selecionado'}
+          <Typography
+            variant="body1"
+            sx={{ color: '#757575', fontSize: '14px' }}
+          >
+            {fileName}
           </Typography>
         </Box>
 
@@ -423,29 +603,37 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
           </Typography>
         )}
 
-        <Box sx={{ display: 'flex', justifyContent: 'center', marginTop: 3 }}>
-          <Button
-            variant="contained"
-            color="success"
-            startIcon={<LocationOn />}
-            onClick={handleGetCoordinates}
-            disabled={loadingCoordinates}
+        {addresses.length > 0 && (
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'center',
+              gap: 2,
+              marginTop: 4,
+            }}
           >
-            {loadingCoordinates ? (
-              <CircularProgress size={24} />
-            ) : (
-              'Salvar Coordenadas'
-            )}
-          </Button>
-          <Button
-            variant="outlined"
-            color="secondary"
-            sx={{ marginLeft: 2 }}
-            onClick={onClose}
-          >
-            Fechar
-          </Button>
-        </Box>
+            <Button
+              variant="contained"
+              color="success"
+              startIcon={<LocationOn />}
+              sx={{
+                padding: '12px 24px',
+                backgroundColor: '#4caf50',
+                fontWeight: 600,
+                borderRadius: '8px',
+                '&:hover': { backgroundColor: '#388e3c' },
+              }}
+              onClick={handleGetCoordinates}
+              disabled={loadingCoordinates}
+            >
+              {loadingCoordinates ? (
+                <CircularProgress size={24} sx={{ color: '#ffffff' }} />
+              ) : (
+                'Salvar Coordenadas'
+              )}
+            </Button>
+          </Box>
+        )}
 
         <Snackbar
           open={snackbarMessage.open}

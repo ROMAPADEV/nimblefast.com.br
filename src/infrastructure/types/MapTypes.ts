@@ -10,6 +10,7 @@ export interface LatLngWithAddress extends LatLng {
   id: number
   address?: string
   cep?: string
+  optimizedIndex?: number
 }
 
 export interface PkgsToMotoboy {
