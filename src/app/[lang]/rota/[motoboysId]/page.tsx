@@ -5,7 +5,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import {
   Marker,
-  Libraries,
   DirectionsRenderer,
   useLoadScript,
 } from '@react-google-maps/api'
@@ -13,7 +12,6 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import CancelIcon from '@mui/icons-material/Cancel'
 import DirectionsIcon from '@mui/icons-material/Directions'
 import { MapaBase } from 'src/components'
-import { useSearchParams } from 'next/navigation'
 import { LatLngWithAddress } from 'src/infrastructure/types/MapTypes'
 import {
   Modal,
@@ -24,15 +22,9 @@ import {
   LinearProgress,
   Backdrop,
   CircularProgress,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
   useMediaQuery,
   useTheme,
 } from '@mui/material'
-import { List as ListIcon } from '@mui/icons-material'
 import { api } from 'src/adapters'
 import moment from 'moment'
 import { DataGrid, GridColDef } from '@mui/x-data-grid'
@@ -75,7 +67,16 @@ const mapOptions = {
 const MAX_WAYPOINTS = 25
 const LOT_SIZE = MAX_WAYPOINTS - 1
 
-const RotaMotoboy: React.FC = () => {
+interface Props {
+  params: {
+    lang: string
+    motoboysId: string
+  }
+}
+
+const RotaMotoboy = ({ params }: Props) => {
+  const { motoboysId } = params
+
   const { isLoaded } = useLoadScript({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string,
     libraries,
@@ -98,7 +99,6 @@ const RotaMotoboy: React.FC = () => {
   const [progress, setProgress] = useState<number>(0)
   const [optimizedOrder, setOptimizedOrder] = useState<number[]>([])
 
-  const searchParams = useSearchParams()
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
 
@@ -107,7 +107,6 @@ const RotaMotoboy: React.FC = () => {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords
-          // Verifica se a localização atual já é a mesma antes de fazer o update
           if (
             currentLocation?.lat !== latitude ||
             currentLocation?.lng !== longitude
@@ -122,7 +121,6 @@ const RotaMotoboy: React.FC = () => {
         },
         (error) => {
           console.error('Erro ao obter a localização:', error)
-          // Verifique se o fallback não foi chamado anteriormente para evitar setState desnecessário
           if (!currentLocation) {
             setCurrentLocation(FALLBACK_LOCATION)
           }
@@ -130,13 +128,11 @@ const RotaMotoboy: React.FC = () => {
       )
     }
 
-    // Só busca os pacotes se ainda não tivermos carregado endereços
     if (addresses.length === 0 && currentLocation) {
       const fetchPackages = async () => {
         try {
           setLoading(true)
-          const response = await api.get(`/packages`)
-          const data = response.data
+          const { data } = await api.get(`/packages/address/${motoboysId}`)
 
           const today = moment().format('YYYY-MM-DD')
           const todayPackages = data.find(
@@ -155,7 +151,7 @@ const RotaMotoboy: React.FC = () => {
 
       fetchPackages()
     }
-  }, [currentLocation, addresses.length])
+  }, [currentLocation, addresses, motoboysId])
 
   const splitIntoBatches = (
     addresses: LatLngWithAddress[],
@@ -208,7 +204,7 @@ const RotaMotoboy: React.FC = () => {
         })
       })
     },
-    [currentLocation], // Dependência do useCallback
+    [currentLocation],
   )
 
   const calculateDistance = (
@@ -216,7 +212,7 @@ const RotaMotoboy: React.FC = () => {
     destination: LatLngWithAddress,
   ): number => {
     const toRad = (value: number) => (value * Math.PI) / 180
-    const R = 6371 // Raio da Terra em km
+    const R = 6371
     const dLat = toRad(destination.lat - origin.lat)
     const dLon = toRad(destination.lng - origin.lng)
     const lat1 = toRad(origin.lat)
@@ -226,7 +222,7 @@ const RotaMotoboy: React.FC = () => {
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(lat1) * Math.cos(lat2)
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-    const distance = R * c // Distância em km
+    const distance = R * c
     return distance
   }
 
@@ -308,8 +304,8 @@ const RotaMotoboy: React.FC = () => {
           }
         }
 
-        setDirections(allResults) // Renderiza as rotas calculadas
-        setOptimizedOrder(combinedOrder) // Define a ordem otimizada
+        setDirections(allResults)
+        setOptimizedOrder(combinedOrder)
       } catch (error) {
         console.error('Erro ao calcular as rotas em lotes:', error)
       } finally {
@@ -360,7 +356,6 @@ const RotaMotoboy: React.FC = () => {
     setDeliveryStatus((prev) => ({ ...prev, [currentIndex]: 'entregue' }))
     setOpenModal(false)
 
-    // Avança para o próximo endereço
     const nextIndex = currentIndex + 1
     if (nextIndex < addresses.length) {
       setSelectedAddress(addresses[nextIndex])
@@ -377,14 +372,11 @@ const RotaMotoboy: React.FC = () => {
   const markAsNotDelivered = () => {
     if (currentIndex === null || !selectedAddress) return
 
-    // Atualiza o status no banco de dados
     updatePackageStatus(selectedAddress.id, 'returned')
 
-    // Atualiza o status local
     setDeliveryStatus((prev) => ({ ...prev, [currentIndex]: 'nao_entregue' }))
     setOpenModal(false)
 
-    // Avança para o próximo endereço
     const nextIndex = currentIndex + 1
     if (nextIndex < addresses.length) {
       setSelectedAddress(addresses[nextIndex])
@@ -398,7 +390,6 @@ const RotaMotoboy: React.FC = () => {
     setProgress((completedDeliveries / addresses.length) * 100)
   }
 
-  // Função para abrir o Google Maps
   const openGoogleMaps = () => {
     if (!selectedAddress) return
     const url = `https://www.google.com/maps/dir/?api=1&destination=${selectedAddress.lat},${selectedAddress.lng}`
@@ -417,7 +408,6 @@ const RotaMotoboy: React.FC = () => {
     }
   }
 
-  // Função para abrir o Waze
   const openWaze = () => {
     if (!selectedAddress) return
     const url = `https://waze.com/ul?ll=${selectedAddress.lat},${selectedAddress.lng}&navigate=yes`
@@ -442,7 +432,6 @@ const RotaMotoboy: React.FC = () => {
           mapOptions={mapOptions}
           libraries={libraries}
         >
-          {/* Barra de progresso */}
           <Box
             sx={{
               position: 'absolute',
