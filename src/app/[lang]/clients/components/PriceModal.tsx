@@ -45,8 +45,6 @@ export const PriceModal: React.FC<PriceModalProps> = ({
         clientsId: parseInt(clientId),
       }
 
-      console.log('Dados enviados para o backend:', priceData)
-
       await api.post('/config', priceData)
 
       setName('')

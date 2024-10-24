@@ -12,7 +12,6 @@ export default function ConfigurationForm() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     // Enviar dados para API
-    console.log('Configuração:', config)
   }
 
   return (

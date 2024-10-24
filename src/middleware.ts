@@ -76,7 +76,7 @@ export async function middleware(request: NextRequest) {
 export default createMiddleware(nextIntl)
 
 // const patchAuth = langs.map((lang) => `${lang}/auth`).join('|')
-// console.log(patchAuth)
+
 export const config = {
   matcher: [
     '/((?!api|_next|en-US/auth|en-US/auth/signup|en-US/rota|pt-BR/auth|pt-BR/auth/signup|pt-BR/rota|es-ES/auth|es-ES/auth/signup|es-ES/rota|.*\\..*).*)',

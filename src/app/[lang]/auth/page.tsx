@@ -39,12 +39,11 @@ export default function Auth({ params }: Props) {
     },
     validationSchema: validarFormSignin(dict),
     onSubmit: async (params: Signin) => {
-      console.log('Iniciando login com os dados:', params) // Log para ver os dados do formulário
+      // Log para ver os dados do formulário
       try {
         setLoading(true)
 
         const response = await api.post('/auth/signin', params)
-        console.log('Resposta da API:', response) // Log para ver a resposta da API
 
         const {
           data: { token },

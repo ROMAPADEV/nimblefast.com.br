@@ -41,7 +41,7 @@ export default function CameraCapture() {
 
       // Usando Tesseract.js para reconhecer texto na imagem capturada
       Tesseract.recognize(imageData, 'eng', {
-        logger: (m) => console.log(m), // Log de progresso
+        // Log de progresso
       })
         .then(({ data: { text } }) => {
           setDetectedText(text)

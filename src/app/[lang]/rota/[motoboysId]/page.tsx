@@ -267,7 +267,6 @@ const RotaMotoboy = ({ params }: Props) => {
       directionsService.route(request, (result, status) => {
         if (status === google.maps.DirectionsStatus.OK && result) {
           setDirections([result])
-          console.log('Rota calculada:', result)
         } else {
           console.error('Erro ao calcular a rota:', status)
         }
@@ -402,7 +401,6 @@ const RotaMotoboy = ({ params }: Props) => {
   ) => {
     try {
       await api.patch(`/packages/${id}/status`, { status })
-      console.log(`Pacote ${id} atualizado com sucesso!`)
     } catch (error) {
       console.error(`Erro ao atualizar o pacote ${id}:`, error)
     }

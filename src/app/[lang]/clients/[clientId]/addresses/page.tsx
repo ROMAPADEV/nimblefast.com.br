@@ -244,6 +244,8 @@ export default function AddressPage() {
           getAddressesByClientsId()
           setOpenProcessModal(false)
         }}
+        clientId={Number(clientId)}
+        configs={configs}
       />
       <ProcessPDFModal
         open={openPDFModal}

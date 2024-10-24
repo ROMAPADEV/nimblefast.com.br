@@ -151,12 +151,10 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
     )
   }
 
-  // Função para atribuir o valor padrão do tipo ao endereço se não tiver sido definido ainda
   const setDefaultTypeForAddresses = (addresses: Address[]) => {
     return addresses.map((address) => {
-      // Se não houver um valor em `tipo`, definimos a primeira opção disponível
       if (!address.tipo && configs.length > 0) {
-        address.tipo = configs[0].name // Atribui o nome da primeira opção do Select
+        address.tipo = configs[0].name
       }
       return address
     })
@@ -168,39 +166,36 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
       value={progress}
       sx={{
         height: 10,
-        background: 'linear-gradient(to right, #3f51b5, #2196f3)', // Gradient
+        background: 'linear-gradient(to right, #3f51b5, #2196f3)',
         borderRadius: '5px',
       }}
     />
   )
 
-  // Normaliza e limpa o texto extraído
   const normalizeText = (text: string): string => {
-    console.log('Normalizando texto:', text)
     return text
-      .replace(/\s+/g, ' ') // Reduzir múltiplos espaços
-      .replace(/[^a-zA-Z0-9À-ÿ\s,.:/-]/g, '') // Remover caracteres especiais
-      .replace(/\b(\d{5})(\d{3})\b/g, '$1-$2') // Formatar CEP com hífen
-      .replace(/(CEP:\s*\d{5}-\d{3})/g, '\n$1') // Coloca cada CEP em uma nova linha
-      .replace(/(Endereço:\s*[^\n]+)/g, '\n$1') // Coloca Endereço em nova linha
-      .replace(/(Bairro:\s*[^\n]+)/g, '\n$1') // Coloca Bairro em nova linha
-      .replace(/\s*NO\b/g, '') // Remove o sufixo "NO" após o número
+      .replace(/\s+/g, ' ')
+      .replace(/[^a-zA-Z0-9À-ÿ\s,.:/-]/g, '')
+      .replace(/\b(\d{5})(\d{3})\b/g, '$1-$2')
+      .replace(/(CEP:\s*\d{5}-\d{3})/g, '\n$1')
+      .replace(/(Endereço:\s*[^\n]+)/g, '\n$1')
+      .replace(/(Bairro:\s*[^\n]+)/g, '\n$1')
+      .replace(/\s*NO\b/g, '')
       .replace(/\s*\/\s*$/, '')
-      .replace(/Complemento:\s*[^\n]*/, '') // Remover complemento se estiver vazio
-      .replace(/Destinatario:\s*[^\n]*/, '') // Remove o campo "Destinatario"
-      .replace(/REMETENTE:\s*[^\n]*/, '') // Remove o campo "REMETENTE"
-      .replace(/DECLARAÇÃO DE CONTEÚDO/g, '') // Remove "DECLARAÇÃO DE CONTEÚDO"
-      .replace(/Código de Rastreamento:\s*[^\n]*/, '') // Remove o campo de código de rastreamento
-      .trim() // Remover espaços nas extremidades
+      .replace(/Complemento:\s*[^\n]*/, '')
+      .replace(/Destinatario:\s*[^\n]*/, '')
+      .replace(/REMETENTE:\s*[^\n]*/, '')
+      .replace(/DECLARAÇÃO DE CONTEÚDO/g, '')
+      .replace(/Código de Rastreamento:\s*[^\n]*/, '')
+      .trim()
   }
 
   const extractShopeeData = (text: string): Address[] => {
     const addressList: Address[] = []
 
-    // Regex específico para detectar padrões da Shopee
     const cepRegex = /CEP:\s*(\d{5}-\d{3})/g
     const enderecoRegex =
-      /(Rua|Avenida|Travessa|Alameda)\s*([^\n,]+),\s*(\d+[A-Za-z]*)/g // Ajuste para capturar o tipo de logradouro
+      /(Rua|Avenida|Travessa|Alameda)\s*([^\n,]+),\s*(\d+[A-Za-z]*)/g
     const bairroRegex = /Bairro:\s*([^\n]+)/g
     const destinatarioRegex = /DESTINATÁRIO\s*:\s*([^\n]+)/g
 
@@ -209,17 +204,16 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
       postalCode: '',
       street: '',
       neighborhood: '',
-      city: 'São Paulo', // Shopee geralmente será em São Paulo
+      city: 'São Paulo',
       lat: 0,
       lng: 0,
       string: '',
-      state: 'SP', // Shopee geralmente será em SP
+      state: 'SP',
       number: '',
       tipo: 'Shopee',
     }
     let id = 1
 
-    // Usar regex para detectar cada componente do endereço
     const cepMatch = cepRegex.exec(text)
     const enderecoMatch = enderecoRegex.exec(text)
     const bairroMatch = bairroRegex.exec(text)
@@ -227,12 +221,10 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
 
     if (cepMatch) currentAddress.postalCode = cepMatch[1]
     if (enderecoMatch) {
-      // Captura o tipo de logradouro (Rua, Avenida, etc.) e o nome da rua
       currentAddress.street = `${enderecoMatch[1]} ${enderecoMatch[2]}`.trim()
-      currentAddress.number = enderecoMatch[3] // Captura o número do endereço
+      currentAddress.number = enderecoMatch[3]
     }
     if (bairroMatch) {
-      // Remove qualquer ":" do final do nome do bairro
       currentAddress.neighborhood = bairroMatch[1].replace(':', '').trim()
     }
     if (destinatarioMatch) currentAddress.string = destinatarioMatch[1]
@@ -247,8 +239,7 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
 
   const extractAddresses = (text: string): Address[] => {
     if (text.includes('SHOPEE') || text.includes('DANFE SIMPLIFICADO')) {
-      console.log('Layout Shopee detectado, extraindo dados específicos...')
-      return extractShopeeData(text) // Chama a extração específica da Shopee
+      return extractShopeeData(text)
     }
     const addressList: Address[] = []
     const lines = text.split('\n')
@@ -275,7 +266,6 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
     lines.forEach((line) => {
       const normalizedLine = normalizeText(line)
 
-      // Verificar se a linha contém CEP
       const cepMatch = cepRegex.exec(normalizedLine)
       if (cepMatch) {
         const exists = addressList.some(
@@ -303,35 +293,20 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
         currentAddress.postalCode = cepMatch[1]
       }
 
-      // Verificar se a linha contém Endereço
       const enderecoMatch = enderecoRegex.exec(normalizedLine)
       if (enderecoMatch) {
-        // Aqui, extraímos o número do endereço
         const enderecoCompleto = enderecoMatch[1].replace(/^Endereço:\s*/, '')
         const enderecoParts = enderecoCompleto.split(' ')
-        const possibleNumber = enderecoParts.pop() // Obtém a última parte do endereço
-
+        const possibleNumber = enderecoParts.pop()
         if (!isNaN(Number(possibleNumber))) {
-          currentAddress.number = possibleNumber // Atribui o número se for válido
-          currentAddress.street = enderecoParts.join(' ') // O restante é a rua
+          currentAddress.number = possibleNumber
+          currentAddress.street = enderecoParts.join(' ')
         } else {
-          currentAddress.street = enderecoCompleto // Se não houver número, atribui o endereço completo
-          currentAddress.number = '' // Define o número como vazio
+          currentAddress.street = enderecoCompleto
+          currentAddress.number = ''
         }
-        console.log('Found street:', currentAddress.street)
-        console.log('Found number:', currentAddress.number)
       }
 
-      // // Verificar se a linha contém Complemento
-      // const complementoMatch = complementoRegex.exec(normalizedLine)
-      // if (complementoMatch) {
-      //   currentAddress.complemento = complementoMatch[1].replace(
-      //     /^Complemento:\s*/,
-      //     '',
-      //   ) // Remover prefixo 'Complemento:'
-      // }
-
-      // Verificar se a linha contém Bairro
       const bairroMatch = bairroRegex.exec(normalizedLine)
       if (bairroMatch) {
         currentAddress.neighborhood = bairroMatch[1].replace(/^Bairro:\s*/, '') // Remover prefixo 'Bairro:'
@@ -358,7 +333,6 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
     try {
       const { data } = await Tesseract.recognize(file, 'por', {
         logger: (m) => {
-          console.log(m)
           if (m.status === 'recognizing text') {
             setProgress(Math.floor(m.progress * 100))
           }
@@ -416,13 +390,9 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
               textContent.items.map((item: any) => item.str).join(' ') + '\n'
           }
 
-          console.log('Texto extraído (antes da normalização):', extractedText)
-
           const normalizedText = normalizeText(extractedText)
           const foundAddresses = extractAddresses(normalizedText)
           setAddresses(foundAddresses)
-
-          console.log('Endereços extraídos:', foundAddresses)
         } catch (error) {
           console.error('Erro ao processar o PDF:', error)
         }
