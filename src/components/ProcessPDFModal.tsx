@@ -487,7 +487,8 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
           borderRadius: 4,
           boxShadow: '0px 8px 30px rgba(0, 0, 0, 0.15)',
           maxWidth: 1200,
-          maxHeight: 900,
+          width: '90%',
+          maxHeight: '90vh',
           overflowY: 'auto',
         }}
       >
