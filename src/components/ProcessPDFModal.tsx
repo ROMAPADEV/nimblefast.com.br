@@ -192,12 +192,13 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
 
   const extractShopeeData = (text: string): Address[] => {
     const addressList: Address[] = []
+    console.log('SHOOPPE AGORA', addressList)
 
     const cepRegex = /CEP:\s*(\d{5}-\d{3})/g
     const enderecoRegex =
       /(Rua|Avenida|Travessa|Alameda)\s*([^\n,]+),\s*(\d+[A-Za-z]*)/g
-    const bairroRegex = /Bairro:\s*([^\n]+)/g
-    const destinatarioRegex = /DESTINATÁRIO\s*:\s*([^\n]+)/g
+    const bairroRegex = /Bairro:\s*([^|&\n]+)/g
+    // const destinatarioRegex = /DESTINATÁRIO\s*:\s*([^\n]+)/g
 
     let currentAddress: Address = {
       id: 1,
@@ -217,7 +218,7 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
     const cepMatch = cepRegex.exec(text)
     const enderecoMatch = enderecoRegex.exec(text)
     const bairroMatch = bairroRegex.exec(text)
-    const destinatarioMatch = destinatarioRegex.exec(text)
+    // const destinatarioMatch = destinatarioRegex.exec(text)
 
     if (cepMatch) currentAddress.postalCode = cepMatch[1]
     if (enderecoMatch) {
@@ -227,7 +228,7 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
     if (bairroMatch) {
       currentAddress.neighborhood = bairroMatch[1].replace(':', '').trim()
     }
-    if (destinatarioMatch) currentAddress.string = destinatarioMatch[1]
+    // if (destinatarioMatch) currentAddress.string = destinatarioMatch[1]
 
     if (currentAddress.postalCode && currentAddress.street) {
       currentAddress.id = id++
@@ -339,6 +340,7 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
         },
       })
       const extractedText = data.text
+      console.log('extração', extractedText)
       let foundAddresses = extractAddresses(extractedText).map((address) => ({
         ...address,
         id: generateUniqueId(), // Atribui um ID único para cada endereço
