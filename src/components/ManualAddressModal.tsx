@@ -65,13 +65,11 @@ export const ManualAddressModal: React.FC<ManualAddressModalProps> = ({
   }, [])
 
   const startRecognition = () => {
-    // Verifica se o navegador suporta o webkitSpeechRecognition
     if (!('webkitSpeechRecognition' in window)) {
       alert('Reconhecimento de voz não suportado neste navegador.')
       return
     }
 
-    // Coerção de tipo explícita para contornar o erro de TypeScript
     const SpeechRecognition =
       window.webkitSpeechRecognition as SpeechRecognitionConstructor
 
@@ -79,9 +77,9 @@ export const ManualAddressModal: React.FC<ManualAddressModalProps> = ({
     const recognition = new SpeechRecognition()
 
     // Definindo propriedades do reconhecimento de voz
-    recognition.lang = 'pt-BR' // Define o idioma para português do Brasil
-    recognition.interimResults = false // Define para receber apenas os resultados finais
-    recognition.maxAlternatives = 1 // Limita a 1 alternativa de reconhecimento de voz
+    recognition.lang = 'pt-BR'
+    recognition.interimResults = false
+    recognition.maxAlternatives = 1
 
     // Quando o reconhecimento começa
     recognition.onstart = () => {
@@ -91,15 +89,12 @@ export const ManualAddressModal: React.FC<ManualAddressModalProps> = ({
 
     // Quando o reconhecimento recebe um resultado
     recognition.onresult = (event) => {
-      // Obtém o primeiro resultado da primeira alternativa (transcrição da fala)
       const speechResult = event.results[0][0].transcript
       console.log('Resultado de voz:', speechResult)
 
-      // Define o valor transcrito no campo de endereço
       setValue(speechResult)
     }
 
-    // Quando ocorre um erro no reconhecimento
     recognition.onerror = (event) => {
       console.error('Erro no reconhecimento de voz:', event.error)
     }
@@ -107,10 +102,9 @@ export const ManualAddressModal: React.FC<ManualAddressModalProps> = ({
     // Quando o reconhecimento termina
     recognition.onend = () => {
       console.log('Reconhecimento de voz finalizado')
-      setIsRecording(false) // Atualiza o estado para indicar que o reconhecimento terminou
+      setIsRecording(false)
     }
 
-    // Inicia o reconhecimento de voz
     recognition.start()
   }
   const handleSelect = async (address: string) => {
