@@ -15,6 +15,7 @@ import {
   IconButton,
 } from '@mui/material'
 import MicIcon from '@mui/icons-material/Mic'
+import { Libraries, useLoadScript } from '@react-google-maps/api'
 import usePlacesAutocomplete, {
   getGeocode,
   getLatLng,
@@ -27,11 +28,18 @@ interface ManualAddressModalProps {
   clientId: number
 }
 
+const libraries: Libraries = ['places']
+
 export const ManualAddressModal: React.FC<ManualAddressModalProps> = ({
   open,
   handleClose,
   clientId,
 }) => {
+  const { isLoaded, loadError } = useLoadScript({
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '', // Certifique-se de adicionar sua API Key ao .env.local
+    libraries,
+  })
+
   const [postalCode, setPostalCode] = useState('')
   const [street, setStreet] = useState('')
   const [neighborhood, setNeighborhood] = useState('')
@@ -53,7 +61,7 @@ export const ManualAddressModal: React.FC<ManualAddressModalProps> = ({
     clearSuggestions,
   } = usePlacesAutocomplete({
     requestOptions: {
-      componentRestrictions: { country: 'br' }, // Limitar para Brasil
+      componentRestrictions: { country: 'br' },
     },
     debounce: 300,
   })
@@ -73,21 +81,17 @@ export const ManualAddressModal: React.FC<ManualAddressModalProps> = ({
     const SpeechRecognition =
       window.webkitSpeechRecognition as SpeechRecognitionConstructor
 
-    // Inicializa a instância do webkitSpeechRecognition
     const recognition = new SpeechRecognition()
 
-    // Definindo propriedades do reconhecimento de voz
     recognition.lang = 'pt-BR'
     recognition.interimResults = false
     recognition.maxAlternatives = 1
 
-    // Quando o reconhecimento começa
     recognition.onstart = () => {
       console.log('Reconhecimento de voz iniciado')
-      setIsRecording(true) // Atualiza o estado para indicar que o reconhecimento começou
+      setIsRecording(true)
     }
 
-    // Quando o reconhecimento recebe um resultado
     recognition.onresult = (event) => {
       const speechResult = event.results[0][0].transcript
       console.log('Resultado de voz:', speechResult)
@@ -99,7 +103,6 @@ export const ManualAddressModal: React.FC<ManualAddressModalProps> = ({
       console.error('Erro no reconhecimento de voz:', event.error)
     }
 
-    // Quando o reconhecimento termina
     recognition.onend = () => {
       console.log('Reconhecimento de voz finalizado')
       setIsRecording(false)
@@ -107,6 +110,7 @@ export const ManualAddressModal: React.FC<ManualAddressModalProps> = ({
 
     recognition.start()
   }
+
   const handleSelect = async (address: string) => {
     setValue(address, false)
     clearSuggestions()
@@ -180,6 +184,14 @@ export const ManualAddressModal: React.FC<ManualAddressModalProps> = ({
     } finally {
       setLoading(false)
     }
+  }
+
+  if (loadError) {
+    return <div>Error loading Google Maps API</div>
+  }
+
+  if (!isLoaded) {
+    return <CircularProgress />
   }
 
   return (
