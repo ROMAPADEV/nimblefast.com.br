@@ -1,5 +1,3 @@
-'use client'
-
 import React, { useState, useEffect } from 'react'
 import {
   Box,
@@ -15,7 +13,6 @@ import {
   IconButton,
 } from '@mui/material'
 import MicIcon from '@mui/icons-material/Mic'
-import { Libraries, useLoadScript } from '@react-google-maps/api'
 import usePlacesAutocomplete, {
   getGeocode,
   getLatLng,
@@ -28,18 +25,11 @@ interface ManualAddressModalProps {
   clientId: number
 }
 
-const libraries: Libraries = ['places']
-
 export const ManualAddressModal: React.FC<ManualAddressModalProps> = ({
   open,
   handleClose,
   clientId,
 }) => {
-  const { isLoaded, loadError } = useLoadScript({
-    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '', // Certifique-se de adicionar sua API Key ao .env.local
-    libraries,
-  })
-
   const [postalCode, setPostalCode] = useState('')
   const [street, setStreet] = useState('')
   const [neighborhood, setNeighborhood] = useState('')
@@ -186,11 +176,7 @@ export const ManualAddressModal: React.FC<ManualAddressModalProps> = ({
     }
   }
 
-  if (loadError) {
-    return <div>Error loading Google Maps API</div>
-  }
-
-  if (!isLoaded) {
+  if (!ready) {
     return <CircularProgress />
   }
 
@@ -210,7 +196,6 @@ export const ManualAddressModal: React.FC<ManualAddressModalProps> = ({
             <IconButton
               onClick={startRecognition}
               color={isRecording ? 'secondary' : 'primary'}
-              aria-label="microphone"
             >
               <MicIcon />
             </IconButton>

@@ -196,7 +196,8 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
 
     const cepRegex = /CEP:\s*(\d{5}-\d{3})/g
     const enderecoRegex =
-      /(Rua|Avenida|Travessa|Alameda)\s*([^\n,]+),\s*(\d+[A-Za-z]*)/g
+      /(Rua|Avenida|Travessa|Alameda)\s*([^\n,]+),\s*(\d+)\b(?!\s*[:A-Za-z])/g
+
     const bairroRegex = /Bairro:\s*([^|&\n]+)/g
     // const destinatarioRegex = /DESTINATÁRIO\s*:\s*([^\n]+)/g
 
@@ -212,6 +213,7 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
       state: 'SP',
       number: '',
       tipo: 'Shopee',
+      complemento: '',
     }
     let id = 1
 
@@ -238,15 +240,13 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
     return addressList
   }
 
-  const extractAddresses = (text: string): Address[] => {
-    if (text.includes('SHOPEE') || text.includes('DANFE SIMPLIFICADO')) {
-      return extractShopeeData(text)
-    }
+  const extractNewTypeAddresses = async (text: string): Promise<Address[]> => {
     const addressList: Address[] = []
     const lines = text.split('\n')
 
-    const cepRegex = /\bCEP:\s*(\d{5}-\d{3})\b/g
-    const enderecoRegex = /Endereço:\s*(.*?)(?=\sEndereço:|$)/g
+    const cepRegex = /\bCEP:\s*(\d{5}-\d{3})\b/gi
+    const enderecoRegex = /End:\s*(.*?),?\s*(N[ºo]?\s*\d+)\s*[^\d\s]?/gi // Inclui suporte para "Nº"
+    const cidadeRegex = /Cidade:\s*(.*?)-\s*(\w{2})/gi // Captura cidade e estado
     const bairroRegex = /Bairro:\s*(.*?)(?=\sBairro:|$)/g
 
     let currentAddress: Address = {
@@ -260,6 +260,134 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
       string: '',
       state: '',
       number: '',
+      complemento: '', // Novo campo para complemento
+      tipo: '',
+    }
+    let id = 1
+
+    for (const line of lines) {
+      const normalizedLine = normalizeText(line)
+
+      // Captura o CEP
+      const cepMatch = cepRegex.exec(normalizedLine)
+      if (cepMatch) {
+        const exists = addressList.some(
+          (address) =>
+            address.postalCode === cepMatch[1] &&
+            address.street === currentAddress.street,
+        )
+
+        if (!exists && currentAddress.postalCode && currentAddress.street) {
+          addressList.push({ ...currentAddress })
+          currentAddress = {
+            id: ++id,
+            postalCode: '',
+            street: '',
+            neighborhood: '',
+            city: '',
+            lat: 0,
+            lng: 0,
+            string: '',
+            state: '',
+            number: '',
+            complemento: '',
+            tipo: '',
+          }
+        }
+        currentAddress.postalCode = cepMatch[1]
+      }
+
+      // Captura o Endereço e Número
+      const enderecoMatch = enderecoRegex.exec(normalizedLine)
+      if (enderecoMatch) {
+        const enderecoCompleto = enderecoMatch[1].replace(/^End:\s*/, '')
+        currentAddress.street = enderecoCompleto.trim()
+        currentAddress.number = enderecoMatch[2].replace(/^N[ºo]?\s*/, '') // Remove "Nº" ou "No"
+      }
+
+      // Captura a Cidade e Estado
+      const cidadeMatch = cidadeRegex.exec(normalizedLine)
+      if (cidadeMatch) {
+        currentAddress.city = cidadeMatch[1].trim()
+        currentAddress.state = cidadeMatch[2].trim() // Captura o estado (por exemplo: SP)
+      }
+
+      // Captura o Bairro
+      const bairroMatch = bairroRegex.exec(normalizedLine)
+      if (bairroMatch) {
+        currentAddress.neighborhood = bairroMatch[1]
+          .replace(/^Bairro:\s*/, '')
+          .trim() // Remove prefixo 'Bairro:'
+      }
+    }
+
+    // Se não encontrou o bairro, consulta a API do ViaCEP
+    if (!currentAddress.neighborhood && currentAddress.postalCode) {
+      console.log('Consultando ViaCEP para o CEP:', currentAddress.postalCode)
+      const addressFromViaCEP = await fetchAddressFromViaCEP(
+        currentAddress.postalCode,
+      )
+      if (addressFromViaCEP && addressFromViaCEP.bairro) {
+        currentAddress.neighborhood = addressFromViaCEP.bairro
+        console.log('Bairro obtido via ViaCEP:', addressFromViaCEP.bairro)
+      } else {
+        console.log('Bairro não encontrado via ViaCEP.')
+      }
+    }
+
+    // Adicionar o último bloco se houver dados completos (CEP e Endereço)
+    if (
+      currentAddress.postalCode &&
+      currentAddress.street &&
+      !addressList.some(
+        (address) =>
+          address.postalCode === currentAddress.postalCode &&
+          address.street === currentAddress.street,
+      )
+    ) {
+      addressList.push(currentAddress)
+    }
+
+    return addressList
+  }
+
+  const fetchAddressFromViaCEP = async (cep: string) => {
+    try {
+      const response = await axios.get(`https://viacep.com.br/ws/${cep}/json/`)
+      return response.data
+    } catch (error) {
+      console.error('Erro ao consultar a API do ViaCEP:', error)
+      return null
+    }
+  }
+
+  const extractAddresses = async (text: string): Promise<Address[]> => {
+    if (text.includes('SHOPEE') || text.includes('DANFE SIMPLIFICADO')) {
+      return extractShopeeData(text)
+    } else if (text.includes('End:')) {
+      return await extractNewTypeAddresses(text)
+    }
+
+    const addressList: Address[] = []
+    const lines = text.split('\n')
+
+    const cepRegex = /\bCEP:\s*(\d{5}-\d{3})\b/g
+    const enderecoRegex = /Endereço:\s*(.*?),?\s*(\d+)\s*[^\d\s]?/g
+
+    const bairroRegex = /Bairro:\s*(.*?)(?=\sBairro:|$)/g
+
+    let currentAddress: Address = {
+      id: 1,
+      postalCode: '',
+      street: '',
+      neighborhood: '',
+      city: '',
+      lat: 0,
+      lng: 0,
+      string: '',
+      state: '',
+      number: '',
+      complemento: '', // Novo campo para complemento
       tipo: '',
     }
     let id = 1
@@ -288,6 +416,7 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
             string: '',
             state: '',
             number: '',
+            complemento: '',
             tipo: '',
           }
         }
@@ -297,14 +426,10 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
       const enderecoMatch = enderecoRegex.exec(normalizedLine)
       if (enderecoMatch) {
         const enderecoCompleto = enderecoMatch[1].replace(/^Endereço:\s*/, '')
-        const enderecoParts = enderecoCompleto.split(' ')
-        const possibleNumber = enderecoParts.pop()
-        if (!isNaN(Number(possibleNumber))) {
-          currentAddress.number = possibleNumber
-          currentAddress.street = enderecoParts.join(' ')
-        } else {
-          currentAddress.street = enderecoCompleto
-          currentAddress.number = ''
+        currentAddress.street = enderecoCompleto.trim()
+        currentAddress.number = enderecoMatch[2] // Captura apenas o número
+        if (enderecoMatch[3]) {
+          currentAddress.complemento = enderecoMatch[3] // Captura o complemento, se houver
         }
       }
 
@@ -330,6 +455,35 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
     return addressList
   }
 
+  const cleanExtractedText = (text: string) => {
+    // Remove caracteres especiais e mantém letras, números e pontuação básica
+    let cleanedText = text
+      .replace(/\s+/g, ' ') // Substitui múltiplos espaços por um único espaço
+      .replace(/[^\w\s,.:;-]/g, '') // Remove caracteres especiais indesejados
+      .replace(/(CEP:\s*\d{5}-\d{3})/g, '\n$1') // Quebra de linha antes de CEP
+      .replace(/(Endereço:\s*[^\n]+)/g, '\n$1') // Quebra de linha antes de Endereço
+      .replace(/(Bairro:\s*[^\n]+)/g, '\n$1') // Quebra de linha antes de Bairro
+      .replace(/(Complemento:\s*[^\n]+)/g, '\n$1') // Quebra de linha antes de Complemento
+      .replace(/(Destinatario:\s*[^\n]+)/g, '\n$1') // Quebra de linha antes de Destinatário
+      .replace(/\s*,\s*/g, ', ') // Formatação de vírgulas
+      .trim() // Remove espaços extras no início e no fim
+
+    // Filtrar apenas as linhas que contêm palavras-chave importantes
+    const keywords = [
+      'CEP',
+      'Endereço',
+      'Bairro',
+      'Complemento',
+      'Destinatario',
+    ]
+    cleanedText = cleanedText
+      .split('\n')
+      .filter((line) => keywords.some((keyword) => line.includes(keyword)))
+      .join('\n')
+
+    return cleanedText
+  }
+
   const processImage = async (file: File) => {
     try {
       const { data } = await Tesseract.recognize(file, 'por', {
@@ -339,12 +493,15 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
           }
         },
       })
+
       const extractedText = data.text
-      console.log('extração', extractedText)
-      let foundAddresses = extractAddresses(extractedText).map((address) => ({
-        ...address,
-        id: generateUniqueId(), // Atribui um ID único para cada endereço
-      }))
+      console.log('Texto extraído e limpo:', extractedText)
+      let foundAddresses = (await extractAddresses(extractedText)).map(
+        (address) => ({
+          ...address,
+          id: generateUniqueId(), // Atribui um ID único para cada endereço
+        }),
+      )
 
       foundAddresses = setDefaultTypeForAddresses(foundAddresses)
 
@@ -394,7 +551,7 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
 
           const normalizedText = normalizeText(extractedText)
           const foundAddresses = extractAddresses(normalizedText)
-          setAddresses(foundAddresses)
+          setAddresses(await foundAddresses)
         } catch (error) {
           console.error('Erro ao processar o PDF:', error)
         }
