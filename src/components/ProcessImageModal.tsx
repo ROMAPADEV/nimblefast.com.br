@@ -206,6 +206,7 @@ export const ProcessImageModal: React.FC<ProcessImageModalProps> = ({
       state: '',
       number: '',
       tipo: '',
+      complemento: '',
     }
     let id = 1
 
@@ -252,6 +253,7 @@ export const ProcessImageModal: React.FC<ProcessImageModalProps> = ({
           state: '',
           number: '',
           tipo: '',
+          complemento: '',
         }
       }
     })
