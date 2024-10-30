@@ -13,10 +13,11 @@ import {
 } from '@mui/material'
 import { LoadingButton } from '@mui/lab'
 import { DataGrid, GridColDef, GridRowSelectionModel } from '@mui/x-data-grid'
-import { api, exibirError } from 'src/adapters'
 import { LatLngWithAddress, Motoboy } from 'src/infrastructure/types'
 import { type Locale } from 'src/infrastructure/providers'
 import moment from 'moment'
+import * as XLSX from 'xlsx'
+import { api, exibirError } from 'src/adapters'
 
 interface ModalEnderecosProps {
   open: boolean
@@ -39,7 +40,10 @@ const style = {
 
 const columns: GridColDef[] = [
   { field: 'address', headerName: 'Endereço', width: 300 },
-  { field: 'number', headerName: 'Número', width: 100 }, // Coluna para número
+  { field: 'number', headerName: 'Número', width: 100 },
+  { field: 'cep', headerName: 'CEP', width: 150 },
+  { field: 'city', headerName: 'Cidade', width: 150 },
+  { field: 'state', headerName: 'Estado', width: 150 },
   { field: 'lat', headerName: 'Latitude', width: 150 },
   { field: 'lng', headerName: 'Longitude', width: 150 },
 ]
@@ -55,6 +59,7 @@ export const ModalEnderecos: React.FC<ModalEnderecosProps> = ({
   const [selectedAddresses, setSelectedAddresses] = useState<
     LatLngWithAddress[]
   >([])
+  console.log('Endereços recebidos:', addresses)
   const [paginationModel, setPaginationModel] = useState({
     page: 0,
     pageSize: 5,
@@ -87,7 +92,6 @@ export const ModalEnderecos: React.FC<ModalEnderecosProps> = ({
 
       const motoca = motoboys.find((mt) => mt.id === motoboyId)
 
-      
       const rotaUrl = `${window.location.origin}/${lang}/rota/${motoboyId}`
       const today = moment().format('DD/MM/YYYY')
       const numeroMotoboy = `+${motoca.whatsapp}`
@@ -101,6 +105,29 @@ export const ModalEnderecos: React.FC<ModalEnderecosProps> = ({
     } finally {
       setLoad(false)
     }
+  }
+
+  const handleDownloadExcel = async () => {
+    const data = selectedAddresses.map((addr) => {
+      const addressData = {
+        'Address Line 1': addr.street,
+        'Address Line 2': addr.number || '',
+        City: addr.city || 'Desconhecido',
+        State: addr.state || 'Desconhecido',
+        'Zip/Postal Code': addr.postalCode || 'Desconhecido', // Usando o CEP diretamente
+      }
+      console.log('Dados do endereço:', addressData) // Log dos dados do endereço antes de exportar
+      return addressData
+    })
+
+    console.log('Dados finais da planilha:', data) // Log dos dados finais que serão exportados
+
+    const worksheet = XLSX.utils.json_to_sheet(data)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Endereços')
+    XLSX.writeFile(workbook, `enderecos_${moment().format('YYYYMMDD')}.xlsx`)
+
+    console.log('Planilha criada e baixada com sucesso!')
   }
 
   return (
@@ -134,10 +161,13 @@ export const ModalEnderecos: React.FC<ModalEnderecosProps> = ({
           <DataGrid
             rows={addresses.map((addr, index) => ({
               id: index,
-              address: addr.street, // Usando o campo street para o endereço
-              number: addr.number, // Usando o campo number diretamente do JSON
+              address: addr.street,
+              number: addr.number,
+              city: addr.city,
+              state: addr.state,
               lat: addr.lat,
               lng: addr.lng,
+              cep: addr.postalCode,
             }))}
             columns={columns}
             paginationModel={paginationModel}
@@ -154,7 +184,7 @@ export const ModalEnderecos: React.FC<ModalEnderecosProps> = ({
             }}
           />
         </Box>
-        <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
+        <Box sx={{ mt: 4, display: 'flex', justifyContent: 'space-between' }}>
           <LoadingButton
             loading={load}
             variant="contained"
@@ -163,6 +193,14 @@ export const ModalEnderecos: React.FC<ModalEnderecosProps> = ({
             disabled={!motoboyId}
           >
             Enviar Rota
+          </LoadingButton>
+          <LoadingButton
+            variant="outlined"
+            color="secondary"
+            onClick={handleDownloadExcel}
+            disabled={selectedAddresses.length === 0}
+          >
+            Baixar Planilha
           </LoadingButton>
         </Box>
       </Box>

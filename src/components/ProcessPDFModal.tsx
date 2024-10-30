@@ -16,7 +16,11 @@ import {
   MenuItem,
   Snackbar,
   Alert,
+  Divider,
+  IconButton,
+  LinearProgress,
 } from '@mui/material'
+import CloseIcon from '@mui/icons-material/Close'
 import { DataGrid, GridColDef } from '@mui/x-data-grid'
 import { usePDFJS } from 'src/infrastructure/hooks'
 import axios from 'axios'
@@ -24,6 +28,7 @@ import CloudUpload from '@mui/icons-material/CloudUpload'
 import LocationOn from '@mui/icons-material/LocationOn'
 import { Address, Config } from 'src/infrastructure/types'
 import { api, exibirError } from 'src/adapters'
+import Tesseract from 'tesseract.js'
 
 interface ProcessPDFModalProps {
   open: boolean
@@ -42,6 +47,7 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
   const [fileName, setFileName] = useState<string>('')
   const [addresses, setAddresses] = useState<Address[]>([])
   const [loadingCoordinates, setLoadingCoordinates] = useState<boolean>(false)
+  const [progress, setProgress] = useState<number>(0)
   const [snackbarMessage, setSnackbarMessage] = useState({
     open: false,
     message: '',
@@ -145,30 +151,102 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
     )
   }
 
-  // Normaliza e limpa o texto extraído
-  const normalizeText = (text: string): string => {
-    console.log('Normalizando texto:', text)
-    return text
-      .replace(/\s+/g, ' ') // Reduzir múltiplos espaços
-      .replace(/[^a-zA-Z0-9À-ÿ\s,.:/-]/g, '') // Remover caracteres especiais
-      .replace(/\b(\d{5})(\d{3})\b/g, '$1-$2') // Formatar CEP com hífen
-      .replace(/(CEP:\s*\d{5}-\d{3})/g, '\n$1') // Coloca cada CEP em uma nova linha
-      .replace(/(Endereço:\s*[^\n]+)/g, '\n$1') // Coloca Endereço em nova linha
-      .replace(/(Bairro:\s*[^\n]+)/g, '\n$1') // Coloca Bairro em nova linha
-      .replace(/Complemento:\s*[^\n]*/, '') // Remover complemento se estiver vazio
-      .replace(/Destinatario:\s*[^\n]*/, '') // Remove o campo "Destinatario"
-      .replace(/REMETENTE:\s*[^\n]*/, '') // Remove o campo "REMETENTE"
-      .replace(/DECLARAÇÃO DE CONTEÚDO/g, '') // Remove "DECLARAÇÃO DE CONTEÚDO"
-      .replace(/Código de Rastreamento:\s*[^\n]*/, '') // Remove o campo de código de rastreamento
-      .trim() // Remover espaços nas extremidades
+  const setDefaultTypeForAddresses = (addresses: Address[]) => {
+    return addresses.map((address) => {
+      if (!address.tipo && configs.length > 0) {
+        address.tipo = configs[0].name
+      }
+      return address
+    })
   }
 
-  const extractAddresses = (text: string): Address[] => {
+  const renderProgressBar = () => (
+    <LinearProgress
+      variant="determinate"
+      value={progress}
+      sx={{
+        height: 10,
+        background: 'linear-gradient(to right, #3f51b5, #2196f3)',
+        borderRadius: '5px',
+      }}
+    />
+  )
+
+  const normalizeText = (text: string): string => {
+    return text
+      .replace(/\s+/g, ' ')
+      .replace(/[^a-zA-Z0-9À-ÿ\s,.:/-]/g, '')
+      .replace(/\b(\d{5})(\d{3})\b/g, '$1-$2')
+      .replace(/(CEP:\s*\d{5}-\d{3})/g, '\n$1')
+      .replace(/(Endereço:\s*[^\n]+)/g, '\n$1')
+      .replace(/(Bairro:\s*[^\n]+)/g, '\n$1')
+      .replace(/\s*NO\b/g, '')
+      .replace(/\s*\/\s*$/, '')
+      .replace(/Complemento:\s*[^\n]*/, '')
+      .replace(/Destinatario:\s*[^\n]*/, '')
+      .replace(/REMETENTE:\s*[^\n]*/, '')
+      .replace(/DECLARAÇÃO DE CONTEÚDO/g, '')
+      .replace(/Código de Rastreamento:\s*[^\n]*/, '')
+      .trim()
+  }
+
+  const extractShopeeData = (text: string): Address[] => {
+    const addressList: Address[] = []
+    console.log('SHOOPPE AGORA', addressList)
+
+    const cepRegex = /CEP:\s*(\d{5}-\d{3})/g
+    const enderecoRegex =
+      /(Rua|Avenida|Travessa|Alameda)\s*([^\n,]+),\s*(\d+)\b(?!\s*[:A-Za-z])/g
+
+    const bairroRegex = /Bairro:\s*([^|&\n]+)/g
+    // const destinatarioRegex = /DESTINATÁRIO\s*:\s*([^\n]+)/g
+
+    let currentAddress: Address = {
+      id: 1,
+      postalCode: '',
+      street: '',
+      neighborhood: '',
+      city: 'São Paulo',
+      lat: 0,
+      lng: 0,
+      string: '',
+      state: 'SP',
+      number: '',
+      tipo: 'Shopee',
+      complemento: '',
+    }
+    let id = 1
+
+    const cepMatch = cepRegex.exec(text)
+    const enderecoMatch = enderecoRegex.exec(text)
+    const bairroMatch = bairroRegex.exec(text)
+    // const destinatarioMatch = destinatarioRegex.exec(text)
+
+    if (cepMatch) currentAddress.postalCode = cepMatch[1]
+    if (enderecoMatch) {
+      currentAddress.street = `${enderecoMatch[1]} ${enderecoMatch[2]}`.trim()
+      currentAddress.number = enderecoMatch[3]
+    }
+    if (bairroMatch) {
+      currentAddress.neighborhood = bairroMatch[1].replace(':', '').trim()
+    }
+    // if (destinatarioMatch) currentAddress.string = destinatarioMatch[1]
+
+    if (currentAddress.postalCode && currentAddress.street) {
+      currentAddress.id = id++
+      addressList.push(currentAddress)
+    }
+
+    return addressList
+  }
+
+  const extractNewTypeAddresses = async (text: string): Promise<Address[]> => {
     const addressList: Address[] = []
     const lines = text.split('\n')
 
-    const cepRegex = /\bCEP:\s*(\d{5}-\d{3})\b/g
-    const enderecoRegex = /Endereço:\s*(.*?)(?=\sEndereço:|$)/g
+    const cepRegex = /\bCEP:\s*(\d{5}-\d{3})\b/gi
+    const enderecoRegex = /End:\s*(.*?),?\s*(N[ºo]?\s*\d+)\s*[^\d\s]?/gi // Inclui suporte para "Nº"
+    const cidadeRegex = /Cidade:\s*(.*?)-\s*(\w{2})/gi // Captura cidade e estado
     const bairroRegex = /Bairro:\s*(.*?)(?=\sBairro:|$)/g
 
     let currentAddress: Address = {
@@ -182,14 +260,15 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
       string: '',
       state: '',
       number: '',
+      complemento: '', // Novo campo para complemento
       tipo: '',
     }
     let id = 1
 
-    lines.forEach((line) => {
+    for (const line of lines) {
       const normalizedLine = normalizeText(line)
 
-      // Verificar se a linha contém CEP
+      // Captura o CEP
       const cepMatch = cepRegex.exec(normalizedLine)
       if (cepMatch) {
         const exists = addressList.some(
@@ -211,41 +290,149 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
             string: '',
             state: '',
             number: '',
+            complemento: '',
             tipo: '',
           }
         }
         currentAddress.postalCode = cepMatch[1]
       }
 
-      // Verificar se a linha contém Endereço
+      // Captura o Endereço e Número
       const enderecoMatch = enderecoRegex.exec(normalizedLine)
       if (enderecoMatch) {
-        // Aqui, extraímos o número do endereço
-        const enderecoCompleto = enderecoMatch[1].replace(/^Endereço:\s*/, '')
-        const enderecoParts = enderecoCompleto.split(' ')
-        const possibleNumber = enderecoParts.pop() // Obtém a última parte do endereço
-
-        if (!isNaN(Number(possibleNumber))) {
-          currentAddress.number = possibleNumber // Atribui o número se for válido
-          currentAddress.street = enderecoParts.join(' ') // O restante é a rua
-        } else {
-          currentAddress.street = enderecoCompleto // Se não houver número, atribui o endereço completo
-          currentAddress.number = '' // Define o número como vazio
-        }
-        console.log('Found street:', currentAddress.street)
-        console.log('Found number:', currentAddress.number)
+        const enderecoCompleto = enderecoMatch[1].replace(/^End:\s*/, '')
+        currentAddress.street = enderecoCompleto.trim()
+        currentAddress.number = enderecoMatch[2].replace(/^N[ºo]?\s*/, '') // Remove "Nº" ou "No"
       }
 
-      // // Verificar se a linha contém Complemento
-      // const complementoMatch = complementoRegex.exec(normalizedLine)
-      // if (complementoMatch) {
-      //   currentAddress.complemento = complementoMatch[1].replace(
-      //     /^Complemento:\s*/,
-      //     '',
-      //   ) // Remover prefixo 'Complemento:'
-      // }
+      // Captura a Cidade e Estado
+      const cidadeMatch = cidadeRegex.exec(normalizedLine)
+      if (cidadeMatch) {
+        currentAddress.city = cidadeMatch[1].trim()
+        currentAddress.state = cidadeMatch[2].trim() // Captura o estado (por exemplo: SP)
+      }
 
-      // Verificar se a linha contém Bairro
+      // Captura o Bairro
+      const bairroMatch = bairroRegex.exec(normalizedLine)
+      if (bairroMatch) {
+        currentAddress.neighborhood = bairroMatch[1]
+          .replace(/^Bairro:\s*/, '')
+          .trim() // Remove prefixo 'Bairro:'
+      }
+    }
+
+    // Se não encontrou o bairro, consulta a API do ViaCEP
+    if (!currentAddress.neighborhood && currentAddress.postalCode) {
+      console.log('Consultando ViaCEP para o CEP:', currentAddress.postalCode)
+      const addressFromViaCEP = await fetchAddressFromViaCEP(
+        currentAddress.postalCode,
+      )
+      if (addressFromViaCEP && addressFromViaCEP.bairro) {
+        currentAddress.neighborhood = addressFromViaCEP.bairro
+        console.log('Bairro obtido via ViaCEP:', addressFromViaCEP.bairro)
+      } else {
+        console.log('Bairro não encontrado via ViaCEP.')
+      }
+    }
+
+    // Adicionar o último bloco se houver dados completos (CEP e Endereço)
+    if (
+      currentAddress.postalCode &&
+      currentAddress.street &&
+      !addressList.some(
+        (address) =>
+          address.postalCode === currentAddress.postalCode &&
+          address.street === currentAddress.street,
+      )
+    ) {
+      addressList.push(currentAddress)
+    }
+
+    return addressList
+  }
+
+  const fetchAddressFromViaCEP = async (cep: string) => {
+    try {
+      const response = await axios.get(`https://viacep.com.br/ws/${cep}/json/`)
+      return response.data
+    } catch (error) {
+      console.error('Erro ao consultar a API do ViaCEP:', error)
+      return null
+    }
+  }
+
+  const extractAddresses = async (text: string): Promise<Address[]> => {
+    if (text.includes('SHOPEE') || text.includes('DANFE SIMPLIFICADO')) {
+      return extractShopeeData(text)
+    } else if (text.includes('End:')) {
+      return await extractNewTypeAddresses(text)
+    }
+
+    const addressList: Address[] = []
+    const lines = text.split('\n')
+
+    const cepRegex = /\bCEP:\s*(\d{5}-\d{3})\b/g
+    const enderecoRegex = /Endereço:\s*(.*?),?\s*(\d+)\s*[^\d\s]?/g
+
+    const bairroRegex = /Bairro:\s*(.*?)(?=\sBairro:|$)/g
+
+    let currentAddress: Address = {
+      id: 1,
+      postalCode: '',
+      street: '',
+      neighborhood: '',
+      city: '',
+      lat: 0,
+      lng: 0,
+      string: '',
+      state: '',
+      number: '',
+      complemento: '', // Novo campo para complemento
+      tipo: '',
+    }
+    let id = 1
+
+    lines.forEach((line) => {
+      const normalizedLine = normalizeText(line)
+
+      const cepMatch = cepRegex.exec(normalizedLine)
+      if (cepMatch) {
+        const exists = addressList.some(
+          (address) =>
+            address.postalCode === cepMatch[1] &&
+            address.street === currentAddress.street,
+        )
+
+        if (!exists && currentAddress.postalCode && currentAddress.street) {
+          addressList.push({ ...currentAddress })
+          currentAddress = {
+            id: ++id,
+            postalCode: '',
+            street: '',
+            neighborhood: '',
+            city: '',
+            lat: 0,
+            lng: 0,
+            string: '',
+            state: '',
+            number: '',
+            complemento: '',
+            tipo: '',
+          }
+        }
+        currentAddress.postalCode = cepMatch[1]
+      }
+
+      const enderecoMatch = enderecoRegex.exec(normalizedLine)
+      if (enderecoMatch) {
+        const enderecoCompleto = enderecoMatch[1].replace(/^Endereço:\s*/, '')
+        currentAddress.street = enderecoCompleto.trim()
+        currentAddress.number = enderecoMatch[2] // Captura apenas o número
+        if (enderecoMatch[3]) {
+          currentAddress.complemento = enderecoMatch[3] // Captura o complemento, se houver
+        }
+      }
+
       const bairroMatch = bairroRegex.exec(normalizedLine)
       if (bairroMatch) {
         currentAddress.neighborhood = bairroMatch[1].replace(/^Bairro:\s*/, '') // Remover prefixo 'Bairro:'
@@ -268,6 +455,80 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
     return addressList
   }
 
+  const cleanExtractedText = (text: string) => {
+    // Remove caracteres especiais e mantém letras, números e pontuação básica
+    let cleanedText = text
+      .replace(/\s+/g, ' ') // Substitui múltiplos espaços por um único espaço
+      .replace(/[^\w\s,.:;-]/g, '') // Remove caracteres especiais indesejados
+      .replace(/(CEP:\s*\d{5}-\d{3})/g, '\n$1') // Quebra de linha antes de CEP
+      .replace(/(Endereço:\s*[^\n]+)/g, '\n$1') // Quebra de linha antes de Endereço
+      .replace(/(Bairro:\s*[^\n]+)/g, '\n$1') // Quebra de linha antes de Bairro
+      .replace(/(Complemento:\s*[^\n]+)/g, '\n$1') // Quebra de linha antes de Complemento
+      .replace(/(Destinatario:\s*[^\n]+)/g, '\n$1') // Quebra de linha antes de Destinatário
+      .replace(/\s*,\s*/g, ', ') // Formatação de vírgulas
+      .trim() // Remove espaços extras no início e no fim
+
+    // Filtrar apenas as linhas que contêm palavras-chave importantes
+    const keywords = [
+      'CEP',
+      'Endereço',
+      'Bairro',
+      'Complemento',
+      'Destinatario',
+    ]
+    cleanedText = cleanedText
+      .split('\n')
+      .filter((line) => keywords.some((keyword) => line.includes(keyword)))
+      .join('\n')
+
+    return cleanedText
+  }
+
+  const processImage = async (file: File) => {
+    try {
+      const { data } = await Tesseract.recognize(file, 'por', {
+        logger: (m) => {
+          if (m.status === 'recognizing text') {
+            setProgress(Math.floor(m.progress * 100))
+          }
+        },
+      })
+
+      const extractedText = data.text
+      console.log('Texto extraído e limpo:', extractedText)
+      let foundAddresses = (await extractAddresses(extractedText)).map(
+        (address) => ({
+          ...address,
+          id: generateUniqueId(), // Atribui um ID único para cada endereço
+        }),
+      )
+
+      foundAddresses = setDefaultTypeForAddresses(foundAddresses)
+
+      setAddresses((prevAddresses) => {
+        const newAddresses = foundAddresses.filter((newAddress) => {
+          const normalize = (str: string) => str.trim().toLowerCase()
+          return !prevAddresses.some((existingAddress) => {
+            return (
+              normalize(existingAddress.postalCode) ===
+                normalize(newAddress.postalCode) &&
+              normalize(existingAddress.street) ===
+                normalize(newAddress.street) &&
+              normalize(existingAddress.number) ===
+                normalize(newAddress.number) &&
+              normalize(existingAddress.neighborhood) ===
+                normalize(newAddress.neighborhood)
+            )
+          })
+        })
+
+        return [...prevAddresses, ...newAddresses]
+      })
+    } catch (error) {
+      console.error('Erro ao processar a imagem:', error)
+    }
+  }
+
   usePDFJS(
     async (pdfjs) => {
       if (!selectedFile) return
@@ -288,13 +549,9 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
               textContent.items.map((item: any) => item.str).join(' ') + '\n'
           }
 
-          console.log('Texto extraído (antes da normalização):', extractedText)
-
           const normalizedText = normalizeText(extractedText)
           const foundAddresses = extractAddresses(normalizedText)
-          setAddresses(foundAddresses)
-
-          console.log('Endereços extraídos:', foundAddresses)
+          setAddresses(await foundAddresses)
         } catch (error) {
           console.error('Erro ao processar o PDF:', error)
         }
@@ -306,12 +563,29 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
   )
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file && file.type === 'application/pdf') {
-      setSelectedFile(file)
-      setFileName(file.name)
-    } else {
-      alert('Por favor, selecione um arquivo PDF válido.')
+    const files = event.target.files // Pega todos os arquivos selecionados
+    if (files && files.length > 0) {
+      const fileList = Array.from(files) // Converte para um array para facilitar a manipulação
+      let fileNames = '' // Variável para armazenar todos os nomes dos arquivos
+
+      fileList.forEach((file) => {
+        const fileType = file.type
+
+        if (fileType === 'application/pdf') {
+          // Lógica para processar PDF
+          setSelectedFile(file) // Processa o arquivo PDF
+          fileNames += `${file.name}, ` // Adiciona o nome do arquivo à lista
+        } else if (fileType.startsWith('image/')) {
+          // Lógica para processar imagem
+          processImage(file) // Processa o arquivo de imagem
+          fileNames += `${file.name}, ` // Adiciona o nome do arquivo à lista
+        } else {
+          alert('Por favor, selecione um arquivo PDF ou imagem válida.')
+        }
+      })
+
+      // Remove a vírgula extra no final e atualiza os nomes dos arquivos
+      setFileName(fileNames.slice(0, -2))
     }
   }
 
@@ -347,6 +621,11 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
     { field: 'lng', headerName: 'Longitude', width: 150 },
   ]
 
+  const generateUniqueId = (() => {
+    let counter = 1
+    return () => counter++
+  })()
+
   return (
     <Modal
       open={open}
@@ -359,30 +638,52 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          padding: 4,
+          padding: 3,
           backgroundColor: (theme) =>
-            theme.palette.mode === 'dark' ? '#1E1E1E' : '#f4f6f8', // Cor de fundo clara
-          maxWidth: 1500,
-          maxHeight: 1000,
-          borderRadius: 2,
-          boxShadow: 24,
+            theme.palette.mode === 'dark' ? '#1E1E1E' : '#f4f6f8',
+          borderRadius: 4,
+          boxShadow: '0px 8px 30px rgba(0, 0, 0, 0.15)',
+          maxWidth: 1200,
+          width: '90%',
+          maxHeight: '90vh',
+          overflowY: 'auto',
         }}
       >
+        {progress > 0 && progress < 100 && (
+          <Box sx={{ marginBottom: 2 }}>{renderProgressBar()}</Box>
+        )}
+        <IconButton
+          aria-label="close"
+          onClick={onClose}
+          sx={{
+            position: 'absolute',
+            right: 16,
+            top: 16,
+            color: '#757575',
+          }}
+        >
+          <CloseIcon />
+        </IconButton>
         <Typography
           variant="h5"
-          gutterBottom
           align="center"
-          sx={{ color: '#3f51b5', fontWeight: 'bold' }}
+          sx={{
+            color: '#3f51b5',
+            fontWeight: 600,
+            marginBottom: 2, // Evita a quebra de linha
+          }}
         >
-          Processar Endereços Pdf
+          Faça upload dos arquivos
         </Typography>
-
+        <Divider sx={{ marginBottom: 4 }} />
         <Box
           sx={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            marginBottom: 2,
+            marginBottom: 3,
+            flexDirection: 'column',
+            gap: 2,
           }}
         >
           <Button
@@ -391,21 +692,30 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
             startIcon={<CloudUpload />} // Ícone de upload
             component="label"
             sx={{
-              padding: '10px 20px',
+              padding: '10px 24px',
               backgroundColor: '#3f51b5',
               '&:hover': { backgroundColor: '#000616ab' },
+              borderRadius: '12px',
+              fontWeight: 500,
+              fontSize: '14px',
+              boxShadow: '0px 2px 8px rgba(63, 81, 181, 0.2)',
+              transition: 'background-color 0.3s ease, transform 0.3s ease',
             }}
           >
-            Escolher Arquivo
+            Escolher Arquivos
             <input
               type="file"
-              accept="application/pdf"
+              accept="application/pdf, image/*"
               hidden
+              multiple
               onChange={handleFileChange}
             />
           </Button>
-          <Typography variant="body1" sx={{ marginLeft: 2, color: '#757575' }}>
-            {fileName || 'Nenhum arquivo selecionado'}
+          <Typography
+            variant="body1"
+            sx={{ color: '#757575', fontSize: '14px' }}
+          >
+            {fileName}
           </Typography>
         </Box>
 
@@ -423,29 +733,37 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
           </Typography>
         )}
 
-        <Box sx={{ display: 'flex', justifyContent: 'center', marginTop: 3 }}>
-          <Button
-            variant="contained"
-            color="success"
-            startIcon={<LocationOn />}
-            onClick={handleGetCoordinates}
-            disabled={loadingCoordinates}
+        {addresses.length > 0 && (
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'center',
+              gap: 2,
+              marginTop: 4,
+            }}
           >
-            {loadingCoordinates ? (
-              <CircularProgress size={24} />
-            ) : (
-              'Salvar Coordenadas'
-            )}
-          </Button>
-          <Button
-            variant="outlined"
-            color="secondary"
-            sx={{ marginLeft: 2 }}
-            onClick={onClose}
-          >
-            Fechar
-          </Button>
-        </Box>
+            <Button
+              variant="contained"
+              color="success"
+              startIcon={<LocationOn />}
+              sx={{
+                padding: '12px 24px',
+                backgroundColor: '#4caf50',
+                fontWeight: 600,
+                borderRadius: '8px',
+                '&:hover': { backgroundColor: '#388e3c' },
+              }}
+              onClick={handleGetCoordinates}
+              disabled={loadingCoordinates}
+            >
+              {loadingCoordinates ? (
+                <CircularProgress size={24} sx={{ color: '#ffffff' }} />
+              ) : (
+                'Salvar Coordenadas'
+              )}
+            </Button>
+          </Box>
+        )}
 
         <Snackbar
           open={snackbarMessage.open}

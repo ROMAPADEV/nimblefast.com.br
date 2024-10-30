@@ -10,4 +10,5 @@ export interface Address {
   state: string
   street: string
   tipo: string
+  complemento?: string
 }
