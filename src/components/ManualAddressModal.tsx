@@ -58,7 +58,7 @@ export const ManualAddressModal: React.FC<ManualAddressModalProps> = ({
 
   useEffect(() => {
     if (!('webkitSpeechRecognition' in window)) {
-      console.warn('Web Speech API is not supported in this browser.')
+      console.warn('Web Speech API is not supported igfdn this browser.')
     }
   }, [])
 
