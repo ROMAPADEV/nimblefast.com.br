@@ -13,6 +13,7 @@ export interface LatLngWithAddress extends LatLng {
   state?: string
   city?: string
   postalCode?: string
+  optimizedIndex?: number
 }
 
 export interface PkgsToMotoboy {

@@ -80,7 +80,6 @@ const Maps = ({ params }: Props) => {
       strokeColor: 'red',
     })
 
-    console.log('poligono', polygonPath)
     setPolygon(polygonPath)
     setDate(new Date())
 
@@ -121,7 +120,6 @@ const Maps = ({ params }: Props) => {
     const polygonDate = new Date(date)
 
     if (polygonDate.getDate() !== currentDate.getDate()) {
-      console.log('Polígono expirado, limpando...')
       clearPolygon()
       setDate(null)
     }
