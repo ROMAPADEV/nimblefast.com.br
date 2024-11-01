@@ -5,11 +5,11 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm install --legacy-peer-deps
+RUN yarn install
 
 COPY . .
 
-RUN npm run build
+RUN yarn build
 
 # Fase de produção
 FROM node:20-alpine AS production
@@ -20,4 +20,4 @@ COPY --from=builder /app ./
 
 EXPOSE 3001
 
-CMD ["npm", "start"]
+CMD ["yarn", "start"]
