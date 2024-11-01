@@ -12,3 +12,9 @@ export interface Address {
   tipo: string
   complemento?: string
 }
+
+export interface AddressComponent {
+  types: string[];
+  long_name: string;
+  short_name: string;
+}

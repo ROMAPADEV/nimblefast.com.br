@@ -19,6 +19,7 @@ import {
   Link,
   Button,
   Tooltip,
+  useMediaQuery,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import moment from 'moment'
@@ -37,9 +38,17 @@ import { useParams } from 'next/navigation'
 import { api } from 'src/adapters'
 import { Client, Config, PackageData } from 'src/infrastructure/types'
 import { TableAddress } from './components/TableAddress'
+import { Libraries, useLoadScript } from '@react-google-maps/api'
+
+const libraries: Libraries = ['places']
 
 export default function AddressPage() {
+  const { isLoaded } = useLoadScript({
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string,
+    libraries,
+  })
   const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const { clientId } = useParams()
   const [loading, setLoading] = useState(true)
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
@@ -105,20 +114,21 @@ export default function AddressPage() {
   return (
     <Box
       sx={{
-        padding: 3,
+        padding: isMobile ? 1 : 3,
         minHeight: '100vh',
         backgroundColor: theme.palette.background.default,
+        overflowX: 'hidden',
       }}
     >
-      <Box sx={{ marginBottom: 2 }}>
+      <Box sx={{ marginBottom: isMobile ? 1 : 2  }}>
         <Breadcrumbs separator={<NavigateNextIcon />} aria-label="breadcrumb">
           <Link underline="hover" color="inherit" href="/">
-            <HomeIcon sx={{ mr: 0.5, fontSize: 16 }} />
+            <HomeIcon sx={{ mr: 0.5, fontSize: isMobile ? 14 : 16 }} />
           </Link>
           <Typography color="text.primary" variant="h6" align="justify">
             Pacotes do cliente
           </Typography>
-          <Typography variant="h4">{client?.name}</Typography>
+          <Typography variant={isMobile ? 'h6' : 'h4'}>{client?.name}</Typography>
         </Breadcrumbs>
       </Box>
 
@@ -127,19 +137,19 @@ export default function AddressPage() {
           display: 'flex',
           justifyContent: 'flex-end',
           alignItems: 'center',
-          gap: 2,
-          marginBottom: 4,
+          gap: isMobile ? 1 : 2,
+          marginBottom: isMobile ? 2 : 4,
         }}
       >
         <Tooltip title="Cadastrar Endereço Manualmente">
           <Button
             variant="contained"
             color="primary"
-            startIcon={<AddIcon />}
-            sx={{ textTransform: 'none' }}
+            startIcon={!isMobile && <CloudUploadIcon />}
+            sx={{ textTransform: 'none', fontSize: isMobile ? '0.8rem' : 'inherit' }}
             onClick={() => setOpenManualAddressModal(true)} // Abre o modal ao clicar
           >
-            Manual
+            {isMobile ? 'Manual' : 'Cadastrar Endereço Manualmente'}
           </Button>
         </Tooltip>
 
@@ -147,11 +157,11 @@ export default function AddressPage() {
           <Button
             variant="contained"
             color="secondary"
-            startIcon={<CloudUploadIcon />}
-            sx={{ textTransform: 'none' }}
+            startIcon={!isMobile && <CloudUploadIcon />}
+            sx={{ textTransform: 'none', fontSize: isMobile ? '0.8rem' : 'inherit' }}
             onClick={() => setOpenPDFModal(true)}
           >
-            Upload
+           {isMobile ? 'Upload' : 'Upload de Imagens'}
           </Button>
         </Tooltip>
 
@@ -159,11 +169,11 @@ export default function AddressPage() {
           <Button
             variant="contained"
             color="success"
-            startIcon={<QrCodeScannerIcon />}
-            sx={{ textTransform: 'none' }}
+            startIcon={!isMobile && <QrCodeScannerIcon />}
+            sx={{ textTransform: 'none', fontSize: isMobile ? '0.8rem' : 'inherit' }}
             onClick={() => setOpenProcessModal(true)}
           >
-            Bipar
+            {isMobile ? 'Bipar' : 'Bipar'}
           </Button>
         </Tooltip>
       </Box>
@@ -175,7 +185,7 @@ export default function AddressPage() {
               <TableRow>
                 <TableCell sx={{ width: '50px' }} />
                 <TableCell sx={{ fontWeight: 'bold' }}>
-                  <Typography variant="h5">
+                <Typography variant={isMobile ? 'h6' : 'h5'}>
                     Pacotes separados por dia
                   </Typography>
                 </TableCell>
@@ -199,7 +209,7 @@ export default function AddressPage() {
                       </IconButton>
                     </TableCell>
                     <TableCell component="th" scope="row">
-                      <Typography variant="h6">
+                    <Typography variant={isMobile ? 'body1' : 'h6'}>
                         {moment(pkg.day).format('DD/MM/YYYY')}
                       </Typography>
                     </TableCell>
@@ -235,7 +245,7 @@ export default function AddressPage() {
           setOpenManualAddressModal(false)
         }}
         clientId={Number(clientId)}
-        // onAddressAdded={handleManualAddressAdded}
+        isGoogleApiLoaded={isLoaded}
       />
 
       <ProcessImageModal
@@ -243,10 +253,11 @@ export default function AddressPage() {
         onClose={() => {
           getAddressesByClientsId()
           setOpenProcessModal(false)
-        }}
+        } }
         clientId={Number(clientId)}
         configs={configs}
-      />
+        isLoaded={isLoaded}     />
+      
       <ProcessPDFModal
         open={openPDFModal}
         onClose={() => {

@@ -1,164 +1,316 @@
-'use client'
-
-/* eslint-disable prefer-const */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState } from 'react'
+import React, { useState } from 'react';
 import {
-  Modal,
   Box,
-  Typography,
   Button,
+  Modal,
+  Typography,
   CircularProgress,
+  Snackbar,
+  Alert,
+  IconButton,
+  LinearProgress,
+  Divider,
+  TextField,
+  useTheme,
+  useMediaQuery,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
-  Snackbar,
-  Alert,
-  Divider,
-  IconButton,
-  LinearProgress,
-} from '@mui/material'
-import CloseIcon from '@mui/icons-material/Close'
-import { DataGrid, GridColDef } from '@mui/x-data-grid'
-import { usePDFJS } from 'src/infrastructure/hooks'
-import axios from 'axios'
-import CloudUpload from '@mui/icons-material/CloudUpload'
-import LocationOn from '@mui/icons-material/LocationOn'
-import { Address, Config } from 'src/infrastructure/types'
-import { api, exibirError } from 'src/adapters'
-import Tesseract from 'tesseract.js'
+} from '@mui/material';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import CloseIcon from '@mui/icons-material/Close';
+import { DataGrid, GridColDef } from '@mui/x-data-grid';
+import axios from 'axios';
+import { Address, Config } from 'src/infrastructure/types';
+import { api, exibirError } from 'src/adapters';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
+import { LoadingButton } from '@mui/lab';
+import { AddressComponent } from 'src/infrastructure/types/address';
+
 
 interface ProcessPDFModalProps {
   open: boolean
   onClose: () => void
   clientId: number
   configs: Config[]
+  isLoaded: boolean
 }
 
-export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
+export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({ 
   open,
-  onClose,
-  clientId,
+  onClose, 
+  clientId, 
   configs,
+  isLoaded,
 }) => {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [fileName, setFileName] = useState<string>('')
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [addresses, setAddresses] = useState<Address[]>([])
-  const [loadingCoordinates, setLoadingCoordinates] = useState<boolean>(false)
   const [progress, setProgress] = useState<number>(0)
-  const [snackbarMessage, setSnackbarMessage] = useState({
-    open: false,
+  const [loadingCoordinates, setLoadingCoordinates] = useState<boolean>(false)
+  const [snackbarMessage, setSnackbarMessage] = useState({ open: false,
     message: '',
-    severity: 'success' as 'success' | 'error',
-  })
+    severity: 'success' as 'success' | 'error', })
+  const [addressData, setAddressData] = useState<any[]>([]);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editRowData, setEditRowData] = useState<any>(null);
 
-  const GOOGLE_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string
+  const GOOGLE_CLOUD_VISION_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_CLOUD_VISION_API_KEY;
+  const GOOGLE_GEOCODING_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
-  const getCoordinates = async (address: string) => {
+  const fetchCoordinates = async (rowData: any) => {
+    const { street, number, neighborhood, city, state, postalCode } = rowData;
+    const addressString = `${street}, ${number}, ${neighborhood}, ${city}, ${state}, ${postalCode}`;
+  
     try {
       const response = await axios.get(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${GOOGLE_API_KEY}`,
-      )
-      const location = response.data.results[0]?.geometry.location
-      const addressComponents = response.data.results[0]?.address_components
-
-      const cityComponent = addressComponents?.find(
-        (comp: any) =>
-          comp.types.includes('locality') ||
-          comp.types.includes('administrative_area_level_2'),
-      )
-      const stateComponent = addressComponents?.find((comp: any) =>
-        comp.types.includes('administrative_area_level_1'),
-      )
-
-      const city = cityComponent?.long_name || ''
-      const state = stateComponent?.short_name || ''
-
-      return {
-        lat: location?.lat || '',
-        long: location?.lng || '',
-        city,
-        state,
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
+          addressString
+        )}&key=${GOOGLE_GEOCODING_API_KEY}`
+      );
+  
+      console.log('Geocode API Response:', response.data); // Log completo da resposta da API
+  
+      const location = response.data.results[0]?.geometry.location;
+      const addressComponents = response.data.results[0]?.address_components;
+  
+      if (location && addressComponents) {
+        // Encontra a cidade
+        const cityComponent = addressComponents.find((component: any) =>
+          component.types.includes('administrative_area_level_2')
+        );
+        const city = cityComponent ? cityComponent.long_name : '';
+        console.log('Extracted City:', city); // Log da cidade
+  
+        // Encontra o estado
+        const stateComponent = addressComponents.find((component: any) =>
+          component.types.includes('administrative_area_level_1')
+        );
+        const state = stateComponent ? stateComponent.short_name : '';
+        console.log('Extracted State:', state); // Log do estado
+  
+        const updatedData = addressData.map((address) =>
+          address.id === rowData.id
+            ? { ...address, lat: location.lat, lng: location.lng, city, state }
+            : address
+        );
+        setAddressData(updatedData);
+        setSnackbarMessage({
+          open: true,
+          message: 'Coordenadas e dados de cidade/estado obtidos com sucesso!',
+          severity: 'success',
+        });
+      } else {
+        throw new Error('Localização não encontrada');
       }
     } catch (error) {
-      console.error('Erro ao obter coordenadas:', error)
-      return { lat: '', long: '', city: '', state: '' }
+      console.error('Erro ao obter coordenadas:', error);
+      setSnackbarMessage({
+        open: true,
+        message: 'Erro ao obter coordenadas.',
+        severity: 'error',
+      });
     }
-  }
+  };
 
-  const handleGetCoordinates = async () => {
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => setImagePreview(reader.result as string);
+      reader.readAsDataURL(file);
+
+      
+      await handleProcessImage(file);
+    }
+  };
+
+
+  const handleProcessImage = async (file: File) => {
+    if (!file  || !GOOGLE_CLOUD_VISION_API_KEY) return;
+
+    setLoading(true);
     try {
-      setLoadingCoordinates(true)
+      const base64Image = await convertFileToBase64(file);
+      const response = await axios.post(
+        `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_CLOUD_VISION_API_KEY}`,
+        {
+          requests: [
+            {
+              image: { content: base64Image.split(',')[1] },
+              features: [{ type: 'TEXT_DETECTION' }],
+            },
+          ],
+        }
+      );
 
-      const updatedAddresses = await Promise.all(
-        addresses.map(async (address) => {
-          const fullAddress = `${address.street}, ${address.neighborhood}, ${address.postalCode}`
+      const textAnnotations = response.data.responses[0].textAnnotations;
+      const detectedText = textAnnotations[0]?.description || 'Nenhum texto detectado.';
+      
+      console.log("texto", detectedText)
+      // Identificar o tipo de etiqueta e usar o método de extração adequado
+      const extractedData = extractDataByType(detectedText);
 
-          const coords = await getCoordinates(fullAddress)
-
-          const configSelected = configs.find(
-            (config) => config.name === address.tipo,
-          )
-
-          if (coords.lat && coords.long && configSelected) {
-            const addressData = {
-              street: address.street || '',
-              neighborhood: address.neighborhood || '',
-              city: coords.city || '',
-              state: coords.state || '',
-              postalCode: address.postalCode || '',
-              number: address.number || '',
-              lat: String(coords.lat),
-              lng: String(coords.long),
-              quantity: 1,
-              value: Number(configSelected.value),
-              clientsId: clientId,
-            }
-
-            await api.post('/packages', addressData)
-
-            setSnackbarMessage({
-              open: true,
-              message: 'Endereços salvos com sucesso!',
-              severity: 'success',
-            })
-          }
-
-          return { ...address, lat: coords.lat, long: coords.long }
-        }),
-      )
-
-      setAddresses(updatedAddresses)
-      onClose()
+      
+      setAddressData((prevAddressData) => [...prevAddressData, extractedData])
+      setSnackbarMessage({ open: true, message: 'Texto extraído com sucesso!', severity: 'success' });
     } catch (error) {
-      exibirError(error)
+      console.error('Erro ao processar imagem:', error);
+      setSnackbarMessage({ open: true, message: 'Erro ao processar a imagem.', severity: 'error' });
     } finally {
-      setLoadingCoordinates(false)
+      setLoading(false);
     }
+  };
+
+  const convertFileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Função para identificar o tipo de etiqueta e escolher o método de extração
+  const extractDataByType = (text: string) => {
+    if (text.includes('SHOPEE')) {
+      return extractShopeeDetails(text);
+    } else {
+      return extractGenericDetails(text);
+    }
+  };
+
+  // Método de extração para etiquetas genéricas
+  const extractGenericDetails = (text: string) => {
+    const addressDetails = {
+      id: Date.now(),
+      postalCode: '',
+      street: '',
+      number: '',
+      complement: '',
+      neighborhood: '',
+      city: '',
+      state: '',
+      destinatario: ''
+    };
+
+    // Regex genérica para capturar dados de destinatário
+    const cepRegex = /CEP:\s*(\d{5}-\d{3}|\d{8})/i;
+    const cepMatch = cepRegex.exec(text);
+    if (cepMatch) {
+      addressDetails.postalCode = cepMatch[1].replace('-', '');
+    }
+
+    const enderecoRegex = /Endereço:\s*(.+?)\s+(\d+)/i;
+    const enderecoMatch = enderecoRegex.exec(text);
+    if (enderecoMatch) {
+      addressDetails.street = enderecoMatch[1].trim();
+      addressDetails.number = enderecoMatch[2].trim();
+    }
+
+    const bairroRegex = /Bairro:\s*([^\n]+)/i;
+    const bairroMatch = bairroRegex.exec(text);
+    if (bairroMatch) {
+      addressDetails.neighborhood = bairroMatch[1].trim();
+    }
+
+    const destinatarioRegex = /Destinatario:\s*([^\n]+)/i;
+    const destinatarioMatch = destinatarioRegex.exec(text);
+    if (destinatarioMatch) {
+      addressDetails.destinatario = destinatarioMatch[1].trim();
+    }
+
+    const cidadeEstadoRegex = /\b([A-Za-z\s]+?),\s*([A-Za-z]{2})\b/i;
+    const cidadeEstadoMatch = cidadeEstadoRegex.exec(text);
+    if (cidadeEstadoMatch) {
+      addressDetails.city = cidadeEstadoMatch[1].trim();
+      addressDetails.state = cidadeEstadoMatch[2].trim();
+    }
+
+    return addressDetails;
+  };
+
+  const handleDeleteAddress = (id: number) => {
+    setAddressData((prev) => prev.filter((adress) => adress.id !== id))
+    setSnackbarMessage({ open: true, message: 'Endereço excluído com sucesso.', severity: 'success' })
   }
 
-  const handleSnackbarClose = () => {
-    setSnackbarMessage({ ...snackbarMessage, open: false })
-  }
+  const handleEditAddress = (rowData: any) => {
+    setEditRowData(rowData);
+    setEditModalOpen(true);
+  };
 
-  const handleSelectChange = (id: number, value: string) => {
-    setAddresses((prevAddresses) =>
-      prevAddresses.map((address) =>
-        address.id === id ? { ...address, tipo: value } : address,
-      ),
-    )
-  }
+  const handleSaveEdit = () => {
+    setAddressData((prev) =>
+      prev.map((address) => (address.id === editRowData.id ? editRowData : address))
+    );
+    setEditModalOpen(false);
+    setSnackbarMessage({ open: true, message: 'Endereço atualizado com sucesso!', severity: 'success' });
+  };
 
-  const setDefaultTypeForAddresses = (addresses: Address[]) => {
-    return addresses.map((address) => {
-      if (!address.tipo && configs.length > 0) {
-        address.tipo = configs[0].name
-      }
-      return address
-    })
-  }
+  // Método de extração para etiquetas da Shopee
+  const extractShopeeDetails = (text: string) => {
+    const addressDetails = {
+      id: Date.now(),
+      postalCode: '',
+      street: '',
+      number: '',
+      complement: '',
+      neighborhood: '',
+      city: '',
+      state: '',
+      destinatario: ''
+    };
+  
+    // Regex específico para cada campo
+    const destinatarioRegex = /DESINATARIO\s*([^\n]+)/i;
+    const enderecoRegex = /Rua\s([^\n,]+),?\s(\d+\w?)/i;
+    const bairroRegex = /Bairro:\s*([^\n]+)/i;
+    const cidadeEstadoRegex = /,\s*(\w+),\s*([^\n]+)/i;
+    const cepRegex = /CEP:\s*(\d{5}-\d{3})/i;
+  
+    // Destinatário
+    const destinatarioMatch = destinatarioRegex.exec(text);
+    if (destinatarioMatch) {
+      addressDetails.destinatario = destinatarioMatch[1].trim();
+    }
+  
+    // Endereço e Número
+    const enderecoMatch = enderecoRegex.exec(text);
+    if (enderecoMatch) {
+      addressDetails.street = enderecoMatch[1].trim();
+      addressDetails.number = enderecoMatch[2].trim();
+    }
+  
+    // Bairro
+    const bairroMatch = bairroRegex.exec(text);
+    if (bairroMatch) {
+      addressDetails.neighborhood = bairroMatch[1].trim();
+    }
+  
+    // Cidade e Estado
+    const cidadeEstadoMatch = cidadeEstadoRegex.exec(text);
+    if (cidadeEstadoMatch) {
+      addressDetails.city = cidadeEstadoMatch[1].trim();
+      addressDetails.state = cidadeEstadoMatch[2].trim();
+    }
+  
+    // CEP
+    const cepMatch = cepRegex.exec(text);
+    if (cepMatch) {
+      addressDetails.postalCode = cepMatch[1].replace('-', '');
+    }
+  
+    return addressDetails;
+  };
 
   const renderProgressBar = () => (
     <LinearProgress
@@ -171,487 +323,134 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
       }}
     />
   )
+  
 
-  const normalizeText = (text: string): string => {
-    return text
-      .replace(/\s+/g, ' ')
-      .replace(/[^a-zA-Z0-9À-ÿ\s,.:/-]/g, '')
-      .replace(/\b(\d{5})(\d{3})\b/g, '$1-$2')
-      .replace(/(CEP:\s*\d{5}-\d{3})/g, '\n$1')
-      .replace(/(Endereço:\s*[^\n]+)/g, '\n$1')
-      .replace(/(Bairro:\s*[^\n]+)/g, '\n$1')
-      .replace(/\s*NO\b/g, '')
-      .replace(/\s*\/\s*$/, '')
-      .replace(/Complemento:\s*[^\n]*/, '')
-      .replace(/Destinatario:\s*[^\n]*/, '')
-      .replace(/REMETENTE:\s*[^\n]*/, '')
-      .replace(/DECLARAÇÃO DE CONTEÚDO/g, '')
-      .replace(/Código de Rastreamento:\s*[^\n]*/, '')
-      .trim()
-  }
+  const handleSnackbarClose = () => {
+    setSnackbarMessage({ ...snackbarMessage, open: false });
+  };
 
-  const extractShopeeData = (text: string): Address[] => {
-    const addressList: Address[] = []
-    console.log('SHOOPPE AGORA', addressList)
-
-    const cepRegex = /CEP:\s*(\d{5}-\d{3})/g
-    const enderecoRegex =
-      /(Rua|Avenida|Travessa|Alameda)\s*([^\n,]+),\s*(\d+)\b(?!\s*[:A-Za-z])/g
-
-    const bairroRegex = /Bairro:\s*([^|&\n]+)/g
-    // const destinatarioRegex = /DESTINATÁRIO\s*:\s*([^\n]+)/g
-
-    let currentAddress: Address = {
-      id: 1,
-      postalCode: '',
-      street: '',
-      neighborhood: '',
-      city: 'São Paulo',
-      lat: 0,
-      lng: 0,
-      string: '',
-      state: 'SP',
-      number: '',
-      tipo: 'Shopee',
-      complemento: '',
-    }
-    let id = 1
-
-    const cepMatch = cepRegex.exec(text)
-    const enderecoMatch = enderecoRegex.exec(text)
-    const bairroMatch = bairroRegex.exec(text)
-    // const destinatarioMatch = destinatarioRegex.exec(text)
-
-    if (cepMatch) currentAddress.postalCode = cepMatch[1]
-    if (enderecoMatch) {
-      currentAddress.street = `${enderecoMatch[1]} ${enderecoMatch[2]}`.trim()
-      currentAddress.number = enderecoMatch[3]
-    }
-    if (bairroMatch) {
-      currentAddress.neighborhood = bairroMatch[1].replace(':', '').trim()
-    }
-    // if (destinatarioMatch) currentAddress.string = destinatarioMatch[1]
-
-    if (currentAddress.postalCode && currentAddress.street) {
-      currentAddress.id = id++
-      addressList.push(currentAddress)
-    }
-
-    return addressList
-  }
-
-  const extractNewTypeAddresses = async (text: string): Promise<Address[]> => {
-    const addressList: Address[] = []
-    const lines = text.split('\n')
-
-    const cepRegex = /\bCEP:\s*(\d{5}-\d{3})\b/gi
-    const enderecoRegex = /End:\s*(.*?),?\s*(N[ºo]?\s*\d+)\s*[^\d\s]?/gi // Inclui suporte para "Nº"
-    const cidadeRegex = /Cidade:\s*(.*?)-\s*(\w{2})/gi // Captura cidade e estado
-    const bairroRegex = /Bairro:\s*(.*?)(?=\sBairro:|$)/g
-
-    let currentAddress: Address = {
-      id: 1,
-      postalCode: '',
-      street: '',
-      neighborhood: '',
-      city: '',
-      lat: 0,
-      lng: 0,
-      string: '',
-      state: '',
-      number: '',
-      complemento: '', // Novo campo para complemento
-      tipo: '',
-    }
-    let id = 1
-
-    for (const line of lines) {
-      const normalizedLine = normalizeText(line)
-
-      // Captura o CEP
-      const cepMatch = cepRegex.exec(normalizedLine)
-      if (cepMatch) {
-        const exists = addressList.some(
-          (address) =>
-            address.postalCode === cepMatch[1] &&
-            address.street === currentAddress.street,
-        )
-
-        if (!exists && currentAddress.postalCode && currentAddress.street) {
-          addressList.push({ ...currentAddress })
-          currentAddress = {
-            id: ++id,
-            postalCode: '',
-            street: '',
-            neighborhood: '',
-            city: '',
-            lat: 0,
-            lng: 0,
-            string: '',
-            state: '',
-            number: '',
-            complemento: '',
-            tipo: '',
-          }
-        }
-        currentAddress.postalCode = cepMatch[1]
-      }
-
-      // Captura o Endereço e Número
-      const enderecoMatch = enderecoRegex.exec(normalizedLine)
-      if (enderecoMatch) {
-        const enderecoCompleto = enderecoMatch[1].replace(/^End:\s*/, '')
-        currentAddress.street = enderecoCompleto.trim()
-        currentAddress.number = enderecoMatch[2].replace(/^N[ºo]?\s*/, '') // Remove "Nº" ou "No"
-      }
-
-      // Captura a Cidade e Estado
-      const cidadeMatch = cidadeRegex.exec(normalizedLine)
-      if (cidadeMatch) {
-        currentAddress.city = cidadeMatch[1].trim()
-        currentAddress.state = cidadeMatch[2].trim() // Captura o estado (por exemplo: SP)
-      }
-
-      // Captura o Bairro
-      const bairroMatch = bairroRegex.exec(normalizedLine)
-      if (bairroMatch) {
-        currentAddress.neighborhood = bairroMatch[1]
-          .replace(/^Bairro:\s*/, '')
-          .trim() // Remove prefixo 'Bairro:'
-      }
-    }
-
-    // Se não encontrou o bairro, consulta a API do ViaCEP
-    if (!currentAddress.neighborhood && currentAddress.postalCode) {
-      console.log('Consultando ViaCEP para o CEP:', currentAddress.postalCode)
-      const addressFromViaCEP = await fetchAddressFromViaCEP(
-        currentAddress.postalCode,
-      )
-      if (addressFromViaCEP && addressFromViaCEP.bairro) {
-        currentAddress.neighborhood = addressFromViaCEP.bairro
-        console.log('Bairro obtido via ViaCEP:', addressFromViaCEP.bairro)
-      } else {
-        console.log('Bairro não encontrado via ViaCEP.')
-      }
-    }
-
-    // Adicionar o último bloco se houver dados completos (CEP e Endereço)
-    if (
-      currentAddress.postalCode &&
-      currentAddress.street &&
-      !addressList.some(
-        (address) =>
-          address.postalCode === currentAddress.postalCode &&
-          address.street === currentAddress.street,
-      )
-    ) {
-      addressList.push(currentAddress)
-    }
-
-    return addressList
-  }
-
-  const fetchAddressFromViaCEP = async (cep: string) => {
-    try {
-      const response = await axios.get(`https://viacep.com.br/ws/${cep}/json/`)
-      return response.data
-    } catch (error) {
-      console.error('Erro ao consultar a API do ViaCEP:', error)
-      return null
-    }
-  }
-
-  const extractAddresses = async (text: string): Promise<Address[]> => {
-    if (text.includes('SHOPEE') || text.includes('DANFE SIMPLIFICADO')) {
-      return extractShopeeData(text)
-    } else if (text.includes('End:')) {
-      return await extractNewTypeAddresses(text)
-    }
-
-    const addressList: Address[] = []
-    const lines = text.split('\n')
-
-    const cepRegex = /\bCEP:\s*(\d{5}-\d{3})\b/g
-    const enderecoRegex = /Endereço:\s*(.*?),?\s*(\d+)\s*[^\d\s]?/g
-
-    const bairroRegex = /Bairro:\s*(.*?)(?=\sBairro:|$)/g
-
-    let currentAddress: Address = {
-      id: 1,
-      postalCode: '',
-      street: '',
-      neighborhood: '',
-      city: '',
-      lat: 0,
-      lng: 0,
-      string: '',
-      state: '',
-      number: '',
-      complemento: '', // Novo campo para complemento
-      tipo: '',
-    }
-    let id = 1
-
-    lines.forEach((line) => {
-      const normalizedLine = normalizeText(line)
-
-      const cepMatch = cepRegex.exec(normalizedLine)
-      if (cepMatch) {
-        const exists = addressList.some(
-          (address) =>
-            address.postalCode === cepMatch[1] &&
-            address.street === currentAddress.street,
-        )
-
-        if (!exists && currentAddress.postalCode && currentAddress.street) {
-          addressList.push({ ...currentAddress })
-          currentAddress = {
-            id: ++id,
-            postalCode: '',
-            street: '',
-            neighborhood: '',
-            city: '',
-            lat: 0,
-            lng: 0,
-            string: '',
-            state: '',
-            number: '',
-            complemento: '',
-            tipo: '',
-          }
-        }
-        currentAddress.postalCode = cepMatch[1]
-      }
-
-      const enderecoMatch = enderecoRegex.exec(normalizedLine)
-      if (enderecoMatch) {
-        const enderecoCompleto = enderecoMatch[1].replace(/^Endereço:\s*/, '')
-        currentAddress.street = enderecoCompleto.trim()
-        currentAddress.number = enderecoMatch[2] // Captura apenas o número
-        if (enderecoMatch[3]) {
-          currentAddress.complemento = enderecoMatch[3] // Captura o complemento, se houver
-        }
-      }
-
-      const bairroMatch = bairroRegex.exec(normalizedLine)
-      if (bairroMatch) {
-        currentAddress.neighborhood = bairroMatch[1].replace(/^Bairro:\s*/, '') // Remover prefixo 'Bairro:'
-      }
-    })
-
-    // Adicionar o último bloco se houver dados completos (CEP e Endereço)
-    if (
-      currentAddress.postalCode &&
-      currentAddress.street &&
-      !addressList.some(
-        (address) =>
-          address.postalCode === currentAddress.postalCode &&
-          address.street === currentAddress.street,
-      )
-    ) {
-      addressList.push(currentAddress)
-    }
-
-    return addressList
-  }
-
-  const cleanExtractedText = (text: string) => {
-    // Remove caracteres especiais e mantém letras, números e pontuação básica
-    let cleanedText = text
-      .replace(/\s+/g, ' ') // Substitui múltiplos espaços por um único espaço
-      .replace(/[^\w\s,.:;-]/g, '') // Remove caracteres especiais indesejados
-      .replace(/(CEP:\s*\d{5}-\d{3})/g, '\n$1') // Quebra de linha antes de CEP
-      .replace(/(Endereço:\s*[^\n]+)/g, '\n$1') // Quebra de linha antes de Endereço
-      .replace(/(Bairro:\s*[^\n]+)/g, '\n$1') // Quebra de linha antes de Bairro
-      .replace(/(Complemento:\s*[^\n]+)/g, '\n$1') // Quebra de linha antes de Complemento
-      .replace(/(Destinatario:\s*[^\n]+)/g, '\n$1') // Quebra de linha antes de Destinatário
-      .replace(/\s*,\s*/g, ', ') // Formatação de vírgulas
-      .trim() // Remove espaços extras no início e no fim
-
-    // Filtrar apenas as linhas que contêm palavras-chave importantes
-    const keywords = [
-      'CEP',
-      'Endereço',
-      'Bairro',
-      'Complemento',
-      'Destinatario',
-    ]
-    cleanedText = cleanedText
-      .split('\n')
-      .filter((line) => keywords.some((keyword) => line.includes(keyword)))
-      .join('\n')
-
-    return cleanedText
-  }
-
-  const processImage = async (file: File) => {
-    try {
-      const { data } = await Tesseract.recognize(file, 'por', {
-        logger: (m) => {
-          if (m.status === 'recognizing text') {
-            setProgress(Math.floor(m.progress * 100))
-          }
-        },
-      })
-
-      const extractedText = data.text
-      console.log('Texto extraído e limpo:', extractedText)
-      let foundAddresses = (await extractAddresses(extractedText)).map(
-        (address) => ({
-          ...address,
-          id: generateUniqueId(), // Atribui um ID único para cada endereço
-        }),
-      )
-
-      foundAddresses = setDefaultTypeForAddresses(foundAddresses)
-
-      setAddresses((prevAddresses) => {
-        const newAddresses = foundAddresses.filter((newAddress) => {
-          const normalize = (str: string) => str.trim().toLowerCase()
-          return !prevAddresses.some((existingAddress) => {
-            return (
-              normalize(existingAddress.postalCode) ===
-                normalize(newAddress.postalCode) &&
-              normalize(existingAddress.street) ===
-                normalize(newAddress.street) &&
-              normalize(existingAddress.number) ===
-                normalize(newAddress.number) &&
-              normalize(existingAddress.neighborhood) ===
-                normalize(newAddress.neighborhood)
-            )
-          })
-        })
-
-        return [...prevAddresses, ...newAddresses]
-      })
-    } catch (error) {
-      console.error('Erro ao processar a imagem:', error)
-    }
-  }
-
-  usePDFJS(
-    async (pdfjs) => {
-      if (!selectedFile) return
-
-      const fileReader = new FileReader()
-      fileReader.onload = async (e) => {
-        const typedarray = new Uint8Array(e.target?.result as ArrayBuffer)
-
-        try {
-          const pdf = await pdfjs.getDocument(typedarray).promise
-          let extractedText = ''
-
-          for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-            const page = await pdf.getPage(pageNum)
-            const textContent = await page.getTextContent()
-
-            extractedText +=
-              textContent.items.map((item: any) => item.str).join(' ') + '\n'
-          }
-
-          const normalizedText = normalizeText(extractedText)
-          const foundAddresses = extractAddresses(normalizedText)
-          setAddresses(await foundAddresses)
-        } catch (error) {
-          console.error('Erro ao processar o PDF:', error)
-        }
-      }
-
-      fileReader.readAsArrayBuffer(selectedFile)
-    },
-    [selectedFile],
+  const handleSelectChange = (value: string, id: number) => {
+    setAddressData((prevData) =>
+    prevData.map((address) =>
+    address.id === id ? {...address, tipo: value } : address
   )
+)}
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files // Pega todos os arquivos selecionados
-    if (files && files.length > 0) {
-      const fileList = Array.from(files) // Converte para um array para facilitar a manipulação
-      let fileNames = '' // Variável para armazenar todos os nomes dos arquivos
+const handleSaveAddresses = async () => {
+  setSaving(true);
+  try {
+    for (const address of addressData) {
+      const config = configs.find((config) => config.name === address.tipo);
+      const value = config ? Number(config.value) : 0;
 
-      fileList.forEach((file) => {
-        const fileType = file.type
+      const formattedAddress = {
+        street: address.street || 'Endereço não especificado',
+        neighborhood: address.neighborhood || 'Bairro não especificado',
+        number: address.number || 'S/N',
+        city: address.city || 'Cidade não especificada',
+        state: address.state || 'Estado não especificado',
+        postalCode: address.postalCode || '00000-000',
+        lat: String(address.lat),
+        lng: String(address.lng),
+        quantity: 1,
+        value,
+        clientsId: clientId,
+      };
 
-        if (fileType === 'application/pdf') {
-          // Lógica para processar PDF
-          setSelectedFile(file) // Processa o arquivo PDF
-          fileNames += `${file.name}, ` // Adiciona o nome do arquivo à lista
-        } else if (fileType.startsWith('image/')) {
-          // Lógica para processar imagem
-          processImage(file) // Processa o arquivo de imagem
-          fileNames += `${file.name}, ` // Adiciona o nome do arquivo à lista
-        } else {
-          alert('Por favor, selecione um arquivo PDF ou imagem válida.')
-        }
-      })
-
-      // Remove a vírgula extra no final e atualiza os nomes dos arquivos
-      setFileName(fileNames.slice(0, -2))
+      // Faz a requisição para cada endereço individualmente
+      await api.post('/packages', formattedAddress);
     }
+
+    setSnackbarMessage({
+      open: true,
+      message: 'Endereços salvos com sucesso!',
+      severity: 'success',
+    });
+    onClose();
+  } catch (error) {
+    console.error('Erro ao salvar endereços:', error);
+    setSnackbarMessage({
+      open: true,
+      message: 'Erro ao salvar endereços.',
+      severity: 'error',
+    });
+  } finally {
+    setSaving(false);
   }
+};
+
 
   const columns: GridColDef[] = [
     {
       field: 'tipo',
-      headerName: 'Tipo',
+      headerName: 'Preço',
       width: 180,
       renderCell: (params) => (
         <FormControl fullWidth>
-          <InputLabel>Tipo</InputLabel>
+          <InputLabel>Preço</InputLabel>
           <Select
             value={params.row.tipo || ''}
-            label="Tipo"
-            onChange={(e) => handleSelectChange(params.row.id, e.target.value)}
-          >
-            {/* Adicionada verificação para garantir que configs está definido */}
-            {(configs && configs.length > 0 ? configs : []).map((config) => (
-              <MenuItem key={config.id} value={config.name}>
-                {config.name}
-              </MenuItem>
-            ))}
-          </Select>
+            label="Preço"
+            onChange={(e) => handleSelectChange(e.target.value, params.row.id)}
+            >
+              {(configs && configs.length > 0 ? configs : []).map((config) => (
+                <MenuItem key={config.id} value={config.name}>
+                  {config.name}
+                </MenuItem>
+              ))}
+            </Select>
         </FormControl>
       ),
     },
     { field: 'postalCode', headerName: 'CEP', width: 130 },
-    { field: 'street', headerName: 'Endereço', width: 250 },
-    { field: 'number', headerName: 'Número', width: 120 },
+    { field: 'street', headerName: 'Endereço', width: 200 },
+    { field: 'number', headerName: 'Número', width: 100 },
     { field: 'neighborhood', headerName: 'Bairro', width: 150 },
     { field: 'complement', headerName: 'Complemento', width: 200 },
+    { field: 'city', headerName: 'Cidade', width: 150 },
+    { field: 'state', headerName: 'Estado', width: 150 },
     { field: 'lat', headerName: 'Latitude', width: 150 },
     { field: 'lng', headerName: 'Longitude', width: 150 },
-  ]
-
-  const generateUniqueId = (() => {
-    let counter = 1
-    return () => counter++
-  })()
+    {
+      field: 'actions',
+      headerName: 'Ações',
+      width: 150,
+      renderCell: (params) => (
+        <>
+           <IconButton color="primary" onClick={() => handleEditAddress(params.row)}>
+            <EditIcon />
+          </IconButton>
+          <IconButton color="error" onClick={() => handleDeleteAddress(params.row.id)}>
+            <DeleteIcon />
+          </IconButton>
+          <IconButton color="info" onClick={() => fetchCoordinates(params.row)}>
+            <LocationOnIcon />
+          </IconButton>
+        </>
+      )
+    }
+  ];
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      aria-labelledby="process-pdf-modal-title"
-    >
+    <>
+       <Modal open={open} onClose={onClose} aria-labelledby="process-image-modal">
       <Box
         sx={{
           position: 'absolute',
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          padding: 3,
-          backgroundColor: (theme) =>
-            theme.palette.mode === 'dark' ? '#1E1E1E' : '#f4f6f8',
+          padding: isMobile ? 2 : 4,
+          backgroundColor: (theme) => (theme.palette.mode === 'dark' ? '#1E1E1E' : '#f4f6f8'),
           borderRadius: 4,
           boxShadow: '0px 8px 30px rgba(0, 0, 0, 0.15)',
-          maxWidth: 1200,
-          width: '90%',
+          maxWidth: isMobile ? '90%' : '60%',
+          width: isMobile ? '100%' : 'auto',
+          height: isMobile ? '85vh' : 'auto',
           maxHeight: '90vh',
-          overflowY: 'auto',
+          overflowY: 'hidden',
         }}
       >
-        {progress > 0 && progress < 100 && (
-          <Box sx={{ marginBottom: 2 }}>{renderProgressBar()}</Box>
-        )}
         <IconButton
           aria-label="close"
           onClick={onClose}
@@ -670,115 +469,164 @@ export const ProcessPDFModal: React.FC<ProcessPDFModalProps> = ({
           sx={{
             color: '#3f51b5',
             fontWeight: 600,
-            marginBottom: 2, // Evita a quebra de linha
+            marginBottom: isMobile ? 1 : 2,
           }}
         >
-          Faça upload dos arquivos
+         Upload de seus arquivos
         </Typography>
-        <Divider sx={{ marginBottom: 4 }} />
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: 3,
-            flexDirection: 'column',
-            gap: 2,
-          }}
-        >
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<CloudUpload />} // Ícone de upload
-            component="label"
-            sx={{
-              padding: '10px 24px',
-              backgroundColor: '#3f51b5',
-              '&:hover': { backgroundColor: '#000616ab' },
-              borderRadius: '12px',
-              fontWeight: 500,
-              fontSize: '14px',
-              boxShadow: '0px 2px 8px rgba(63, 81, 181, 0.2)',
-              transition: 'background-color 0.3s ease, transform 0.3s ease',
-            }}
-          >
-            Escolher Arquivos
-            <input
-              type="file"
-              accept="application/pdf, image/*"
-              hidden
-              multiple
-              onChange={handleFileChange}
-            />
-          </Button>
-          <Typography
-            variant="body1"
-            sx={{ color: '#757575', fontSize: '14px' }}
-          >
-            {fileName}
-          </Typography>
-        </Box>
+        <Divider sx={{ marginBottom: isMobile ? 2 : 3 }} />
 
-        {addresses.length > 0 ? (
-          <Box sx={{ height: 500, width: '100%', marginTop: 2 }}>
-            <DataGrid
-              rows={addresses}
-              columns={columns}
-              pageSizeOptions={[5]}
-            />
-          </Box>
+        {loading ? (
+          <CircularProgress />
         ) : (
-          <Typography variant="body1" align="center" sx={{ color: '#757575' }}>
-            Nenhum endereço extraído ainda.
-          </Typography>
-        )}
-
-        {addresses.length > 0 && (
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'center',
-              gap: 2,
-              marginTop: 4,
-            }}
-          >
+          <>
+            {imagePreview && (
+              <img
+                src={imagePreview}
+                alt="Preview"
+                style={{
+                  width: 'auto',
+                  maxHeight: isMobile ? 150 : 200,
+                  marginBottom: isMobile ? 16 : 20,
+                  borderRadius: '8px',
+                  boxShadow: '0px 4px 10px rgba(0, 0, 0, 0.1)',
+                }}
+              />
+            )}
             <Button
               variant="contained"
-              color="success"
-              startIcon={<LocationOn />}
+              color="primary"
+              startIcon={<CloudUploadIcon />}
+              component="label"
               sx={{
-                padding: '12px 24px',
-                backgroundColor: '#4caf50',
+                padding: '8px 16px',
+                backgroundColor: '#3f51b5',
                 fontWeight: 600,
-                borderRadius: '8px',
-                '&:hover': { backgroundColor: '#388e3c' },
+                borderRadius: 3,
+                boxShadow: '0px 3px 8px rgba(63, 81, 181, 0.3)',
+                marginBottom: 2,
+                width: isMobile ? '100%' : 'auto',
               }}
-              onClick={handleGetCoordinates}
-              disabled={loadingCoordinates}
             >
-              {loadingCoordinates ? (
-                <CircularProgress size={24} sx={{ color: '#ffffff' }} />
-              ) : (
-                'Salvar Coordenadas'
-              )}
+              Escolher Imagem
+              <input type="file" accept="image/*" hidden onChange={handleFileChange} />
             </Button>
-          </Box>
+          </>
         )}
 
-        <Snackbar
-          open={snackbarMessage.open}
-          autoHideDuration={4000}
-          onClose={handleSnackbarClose}
-        >
-          <Alert
-            onClose={handleSnackbarClose}
-            severity={snackbarMessage.severity}
-            sx={{ width: '100%' }}
+        <Box 
+          sx={{ height: isMobile ? '40vh' : 300, width: '100%', marginTop: 4 }}>
+          <DataGrid rows={addressData} columns={columns} pageSizeOptions={[5]} />
+        </Box>
+
+        <Box  
+          sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            marginTop: 2,
+            position: 'sticky',
+            bottom: 0,
+            backgroundColor: (theme) => (theme.palette.mode === 'dark' ? '#1E1E1E' : '#f4f6f8'),
+            padding: 2,
+          }}>
+          <LoadingButton
+            variant="contained"
+            color="success"
+            onClick={handleSaveAddresses}
+            loading={saving}
+            sx={{
+              width: isMobile ? '100%' : 'auto',
+              fontWeight: 'bold',
+              borderRadius: 3,
+              backgroundColor: '#4caf50',
+              ':hover': { backgroundColor: '#43a047' },
+            }}
           >
+            Salvar Endereços
+          </LoadingButton>
+        </Box>
+      </Box>
+    </Modal>
+
+    <Modal open={editModalOpen} onClose={() => setEditModalOpen(false)} aria-labelledby="edit-modal">
+        <Box
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 400,
+            bgcolor: 'background.paper',
+            p: 4,
+            boxShadow: 24,
+            borderRadius: 2,
+          }}
+        >
+          <Typography variant="h6" component="h2" gutterBottom>
+            Editar Endereço
+          </Typography>
+          <TextField
+            fullWidth
+            label="CEP"
+            value={editRowData?.postalCode || ''}
+            onChange={(e) => setEditRowData({ ...editRowData, postalCode: e.target.value })}
+            margin="normal"
+          />
+          <TextField
+            fullWidth
+            label="Endereço"
+            value={editRowData?.street || ''}
+            onChange={(e) => setEditRowData({ ...editRowData, street: e.target.value })}
+            margin="normal"
+          />
+          <TextField
+          fullWidth
+          label="Número"
+          value={editRowData?.number || ''}
+          onChange={(e) => setEditRowData({ ...editRowData, number: e.target.value })}
+          margin="normal"
+          />
+          <TextField
+          fullWidth
+          label="Bairro"
+          value={editRowData?.neighborhood || ''}
+          onChange={(e) => setEditRowData({ ...editRowData, neighborhood: e.target.value })}
+          margin="normal"
+          />
+          <TextField
+          fullWidth
+          label="Cidade"
+          value={editRowData?.city || ''}
+          onChange={(e) => setEditRowData({ ...editRowData, city: e.target.value })}
+          margin="normal"
+          />
+        <TextField
+          fullWidth
+          label="Estado"
+          value={editRowData?.state || ''}
+          onChange={(e) => setEditRowData({ ...editRowData, state: e.target.value })}
+          margin="normal"
+          />
+        <TextField
+          fullWidth
+          label="Complemento"
+          value={editRowData?.complement || ''}
+          onChange={(e) => setEditRowData({ ...editRowData, complement: e.target.value })}
+          margin="normal"
+          />
+          {/* Add other fields as needed */}
+          <Button variant="contained" color="primary" onClick={handleSaveEdit} fullWidth>
+            Salvar
+          </Button>
+        </Box>
+      </Modal>
+
+      <Snackbar open={snackbarMessage.open} autoHideDuration={4000} onClose={handleSnackbarClose}>
+          <Alert onClose={handleSnackbarClose} severity={snackbarMessage.severity}>
             {snackbarMessage.message}
           </Alert>
         </Snackbar>
-      </Box>
-    </Modal>
-  )
-}
+    </>
+    
+  );
+};
