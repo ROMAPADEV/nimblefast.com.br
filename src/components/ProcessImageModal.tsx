@@ -121,15 +121,19 @@ export const ProcessImageModal: React.FC<ProcessImageModalProps> = ({
   };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => setImagePreview(reader.result as string);
-      reader.readAsDataURL(file);
-
+    const files = Array.from(event.target.files || []);
+    if (files.length > 0) {
+      setLoading(true);
       
-      await handleProcessImage(file);
+      for (const file of files) {
+        const reader = new FileReader();
+        reader.onloadend = () => setImagePreview(reader.result as string); // Define a pré-visualização da última imagem carregada
+        reader.readAsDataURL(file);
+        
+        await handleProcessImage(file); // Processa cada imagem individualmente
+      }
+      
+      setLoading(false);
     }
   };
 
@@ -509,7 +513,7 @@ const handleSaveAddresses = async () => {
               }}
             >
               Escolher Imagem
-              <input type="file" accept="image/*" hidden onChange={handleFileChange} />
+              <input type="file" accept="image/*" hidden multiple onChange={handleFileChange} />
             </Button>
           </>
         )}
@@ -613,7 +617,7 @@ const handleSaveAddresses = async () => {
           value={editRowData?.complement || ''}
           onChange={(e) => setEditRowData({ ...editRowData, complement: e.target.value })}
           margin="normal"
-          />
+        />
           {/* Add other fields as needed */}
           <Button variant="contained" color="primary" onClick={handleSaveEdit} fullWidth>
             Salvar
