@@ -265,8 +265,8 @@ export default function AddressPage() {
           setOpenPDFModal(false)
         }}
         clientId={Number(clientId)}
-        configs={configs}
-      />
+        configs={configs} 
+        isLoaded={isLoaded}      />
     </Box>
   )
 }
