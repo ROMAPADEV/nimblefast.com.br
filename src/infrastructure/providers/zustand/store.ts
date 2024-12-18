@@ -32,7 +32,7 @@ export const useColorMode = create<ColorModeState>()(
 export const useAuth = create<AuthState>()(
   persist(
     (set) => ({
-      user: null,
+      user: null as User | null,
       setUser: (user: User | null) => {
         set({ user })
       },
