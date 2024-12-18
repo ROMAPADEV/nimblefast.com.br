@@ -120,15 +120,15 @@ export default function AddressPage() {
         overflowX: 'hidden',
       }}
     >
-      <Box sx={{ marginBottom: isMobile ? 1 : 2  }}>
+      <Box sx={{ marginBottom: isMobile ? 1 : 2, alignItems: 'center' }}>
         <Breadcrumbs separator={<NavigateNextIcon />} aria-label="breadcrumb">
           <Link underline="hover" color="inherit" href="/">
             <HomeIcon sx={{ mr: 0.5, fontSize: isMobile ? 14 : 16 }} />
           </Link>
-          <Typography color="text.primary" variant="h6" align="justify">
+          <Typography color="text.primary">
             Pacotes do cliente
           </Typography>
-          <Typography variant={isMobile ? 'h6' : 'h4'}>{client?.name}</Typography>
+          <Typography variant={isMobile ? 'h5' : 'h4'}>{client?.name}</Typography>
         </Breadcrumbs>
       </Box>
 
@@ -145,8 +145,13 @@ export default function AddressPage() {
           <Button
             variant="contained"
             color="primary"
-            startIcon={!isMobile && <CloudUploadIcon />}
-            sx={{ textTransform: 'none', fontSize: isMobile ? '0.8rem' : 'inherit' }}
+            startIcon={!isMobile && <AddIcon  />}
+            sx={{
+              textTransform: 'none',
+              fontWeight: 'bold',
+              boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.2)',
+              ':hover': { backgroundColor: '#2a75e0' },
+            }}
             onClick={() => setOpenManualAddressModal(true)} // Abre o modal ao clicar
           >
             {isMobile ? 'Manual' : 'Cadastrar Endereço Manualmente'}
@@ -158,7 +163,12 @@ export default function AddressPage() {
             variant="contained"
             color="secondary"
             startIcon={!isMobile && <CloudUploadIcon />}
-            sx={{ textTransform: 'none', fontSize: isMobile ? '0.8rem' : 'inherit' }}
+            sx={{
+              textTransform: 'none',
+              fontWeight: 'bold',
+              boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.2)',
+              ':hover': { backgroundColor: '#a62ca8' },
+            }}
             onClick={() => setOpenPDFModal(true)}
           >
            {isMobile ? 'Upload' : 'Upload de Imagens'}
@@ -170,7 +180,12 @@ export default function AddressPage() {
             variant="contained"
             color="success"
             startIcon={!isMobile && <QrCodeScannerIcon />}
-            sx={{ textTransform: 'none', fontSize: isMobile ? '0.8rem' : 'inherit' }}
+            sx={{
+              textTransform: 'none',
+              fontWeight: 'bold',
+              boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.2)',
+              ':hover': { backgroundColor: '#43a047' },
+            }}
             onClick={() => setOpenProcessModal(true)}
           >
             {isMobile ? 'Bipar' : 'Bipar'}
@@ -178,65 +193,74 @@ export default function AddressPage() {
         </Tooltip>
       </Box>
 
-      <Paper>
-        <TableContainer component={Paper}>
-          <Table aria-label="collapsible table" sx={{ minWidth: 650 }}>
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ width: '50px' }} />
-                <TableCell sx={{ fontWeight: 'bold' }}>
-                <Typography variant={isMobile ? 'h6' : 'h5'}>
-                    Pacotes separados por dia
-                  </Typography>
-                </TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {packages.map((pkg) => (
-                <React.Fragment key={pkg.day}>
-                  <TableRow>
-                    <TableCell sx={{ width: '50px' }}>
-                      <IconButton
-                        aria-label="expand row"
-                        size="small"
-                        onClick={() => handleRowClick(pkg.day)}
-                      >
-                        {expandedRow === pkg.day ? (
-                          <KeyboardArrowUpIcon />
-                        ) : (
-                          <KeyboardArrowDownIcon />
-                        )}
-                      </IconButton>
-                    </TableCell>
-                    <TableCell component="th" scope="row">
-                    <Typography variant={isMobile ? 'body1' : 'h6'}>
-                        {moment(pkg.day).format('DD/MM/YYYY')}
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell
-                      style={{ paddingBottom: 0, paddingTop: 0 }}
-                      colSpan={6}
-                    >
-                      <Collapse
-                        in={expandedRow === pkg.day}
-                        timeout="auto"
-                        unmountOnExit
-                      >
-                        <TableAddress
-                          packages={pkg.items}
-                          updateList={getAddressesByClientsId}
-                        />
-                      </Collapse>
-                    </TableCell>
-                  </TableRow>
-                </React.Fragment>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Paper>
+      <Paper elevation={3} sx={{ borderRadius: 2, overflow: 'hidden' }}>
+  <TableContainer>
+    <Table>
+      <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
+        <TableRow>
+          <TableCell />
+          <TableCell>
+            <Typography
+              variant="h6"
+              sx={{ fontWeight: 'bold', color: 'primary.main' }}
+            >
+              Pacotes separados por dia
+            </Typography>
+          </TableCell>
+        </TableRow>
+      </TableHead>
+
+      <TableBody>
+        {packages.map((pkg) => (
+          <React.Fragment key={pkg.day}>
+            <TableRow hover>
+              <TableCell>
+                <IconButton onClick={() => handleRowClick(pkg.day)}>
+                  {expandedRow === pkg.day ? (
+                    <KeyboardArrowUpIcon />
+                  ) : (
+                    <KeyboardArrowDownIcon />
+                  )}
+                </IconButton>
+              </TableCell>
+              <TableCell>
+                <Typography
+                  variant="body1"
+                  sx={{ fontWeight: 'bold', color: '#424242' }}
+                >
+                  {moment(pkg.day).format('DD/MM/YYYY')}
+                </Typography>
+              </TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell colSpan={6} sx={{ padding: 0 }}>
+                <Collapse
+                  in={expandedRow === pkg.day}
+                  timeout="auto"
+                  unmountOnExit
+                >
+                  <Box
+                    sx={{
+                      padding: 2,
+                      backgroundColor: '#fafafa',
+                      borderRadius: 2,
+                      margin: 2,
+                    }}
+                  >
+                    <TableAddress
+                      packages={pkg.items}
+                      updateList={getAddressesByClientsId}
+                    />
+                  </Box>
+                </Collapse>
+              </TableCell>
+            </TableRow>
+          </React.Fragment>
+        ))}
+      </TableBody>
+    </Table>
+  </TableContainer>
+</Paper>
 
       <ManualAddressModal
         open={openManualAddressModal}

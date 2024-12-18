@@ -61,37 +61,41 @@ export const Input: React.FC<InputProps> = ({
   return (
     <>
       <Box style={{ width: '100%' }}>
-        <TextField
-          inputRef={inputRef}
-          style={{ width: '100%' }}
-          {...props}
-          id={name}
-          type={getType()}
-          onChange={formik.handleChange}
-          onFocus={() => setShowProgress(true)}
-          onBlur={() => setShowProgress(false)}
-          onInput={(e: ChangeEvent<HTMLInputElement>) => {
-            setTotalChar(e.target.value.length)
-            if (onInput) {
-              onInput(e)
-            }
-          }}
-          inputProps={{ maxLength: props.maxRows }}
-          InputProps={{
-            endAdornment:
-              props.type === 'password' ? (
-                <IconButton
-                  type="button"
-                  onClick={() => setShowPass(!showPass)}
-                  aria-label="icon"
-                >
-                  {showPass ? <VisibilityOff /> : <RemoveRedEye />}
-                </IconButton>
-              ) : null,
-          }}
-          error={!!formik.errors[name]}
-          helperText={<>{formik.errors[name]}</>}
-        />
+      <TextField
+  inputRef={inputRef}
+  style={{ width: '100%' }}
+  {...props}
+  id={name}
+  type={getType()}
+  onChange={formik.handleChange}
+  onFocus={() => setShowProgress(true)}
+  onBlur={() => setShowProgress(false)}
+  onInput={(e: ChangeEvent<HTMLInputElement>) => {
+    setTotalChar(e.target.value.length)
+    if (onInput) {
+      onInput(e)
+    }
+  }}
+  inputProps={{ maxLength: props.maxRows }}
+  InputProps={{
+    endAdornment:
+      props.type === 'password' ? (
+        <IconButton
+          type="button"
+          onClick={() => setShowPass(!showPass)}
+          aria-label="icon"
+        >
+          {showPass ? <VisibilityOff /> : <RemoveRedEye />}
+        </IconButton>
+      ) : null,
+  }}
+  error={!!formik.errors[name]}
+  helperText={
+    formik.errors[name] && typeof formik.errors[name] === 'string'
+      ? formik.errors[name]
+      : ''
+  }
+/>
       </Box>
 
       {showProgress ? (

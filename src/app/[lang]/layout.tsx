@@ -63,7 +63,7 @@ export default function RootLayout({ children, params }: Props) {
 
   const authentication = React.useMemo(() => {
     return {
-      signIn: undefined,
+      signIn: undefined as (() => void) | undefined,
       signOut: () => {
         router.push(`/${params.lang}/auth/logout`)
       },
