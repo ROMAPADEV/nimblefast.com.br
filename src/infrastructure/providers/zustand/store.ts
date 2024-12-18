@@ -52,8 +52,8 @@ export const useAuth = create<AuthState>()(
 export const usePolygonStore = create<PolygonState>()(
   persist(
     (set) => ({
-      polygons: [],
-      date: null,
+      polygons: [] as any[],
+      date: null as Date | null,
       setPolygon: (polygon) =>
         set((state) => ({
           polygons: [...state.polygons, polygon],
