@@ -53,7 +53,7 @@ export const usePolygonStore = create<PolygonState>()(
   persist(
     (set) => ({
       polygons: [],
-      date: null,
+      date: null as Date | null,
       setPolygon: (polygon) =>
         set((state) => ({
           polygons: [...state.polygons, polygon],
