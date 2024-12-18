@@ -204,9 +204,9 @@ export const ManualAddressModal: React.FC<ManualAddressModalProps> = ({
             </Box>
           )}
 
-          <TextField label="CEP" value={postalCode} fullWidth disabled />
+          <TextField label="CEP" value={postalCode} fullWidth />
           <TextField label="Rua" value={street} fullWidth disabled />
-          <TextField label="Número" value={number} fullWidth disabled />
+          <TextField label="Número" value={number} fullWidth  />
           <TextField label="Bairro" value={neighborhood} fullWidth disabled />
           <TextField label="Cidade" value={city} fullWidth disabled />
           <TextField label="Estado" value={state} fullWidth disabled />
