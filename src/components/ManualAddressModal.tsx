@@ -207,7 +207,7 @@ export const ManualAddressModal: React.FC<ManualAddressModalProps> = ({
 
           <TextField label="CEP" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} fullWidth />
           <TextField label="Rua" value={street} fullWidth disabled />
-          <TextField label="Número" value={number} onChange={(e) => setNumber(e.target.value)} fullWidth  />
+          <TextField label="Número" value={number} onChange={(e) => setNumber(e.target.value)} fullWidth helperText="Se o endereço não possui número, deixe vazio ou insira 'S/N" />
           <TextField label="Bairro" value={neighborhood} fullWidth disabled />
           <TextField label="Cidade" value={city} fullWidth disabled />
           <TextField label="Estado" value={state} fullWidth disabled />

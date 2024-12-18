@@ -23,12 +23,11 @@ import CloseIcon from '@mui/icons-material/Close';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import axios from 'axios';
 import { Address, Config } from 'src/infrastructure/types';
-import { api, exibirError } from 'src/adapters';
+import { api } from 'src/adapters';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import { LoadingButton } from '@mui/lab';
-import { AddressComponent } from 'src/infrastructure/types/address';
 
 
 interface ProcessImageModalProps {
@@ -165,10 +164,10 @@ export const ProcessImageModal: React.FC<ProcessImageModalProps> = ({
 
       
       setAddressData((prevAddressData) => [...prevAddressData, extractedData])
-      setSnackbarMessage({ open: true, message: 'Texto extraído com sucesso!', severity: 'success' });
+      setSnackbarMessage({ open: true, message: 'Texto extraído com sucesso! Confira os detalhes na tabela abaixo.', severity: 'success' });
     } catch (error) {
       console.error('Erro ao processar imagem:', error);
-      setSnackbarMessage({ open: true, message: 'Erro ao processar a imagem.', severity: 'error' });
+      setSnackbarMessage({ open: true, message: 'Erro ao processar a imagem. Verifique o formato ou tente novamente mais tarde.', severity: 'error' });
     } finally {
       setLoading(false);
     }
@@ -271,14 +270,16 @@ export const ProcessImageModal: React.FC<ProcessImageModalProps> = ({
       neighborhood: '',
       city: '',
       state: '',
-      destinatario: ''
+      destinatario: '',
+      pedido: '',
+      remetente: '',
+      dataEntrega: '',
     };
   
     // Regex específico para cada campo
-    const destinatarioRegex = /DESINATARIO\s*([^\n]+)/i;
-    const enderecoRegex = /Rua\s([^\n,]+),?\s(\d+\w?)/i;
+    const destinatarioRegex = /DESTINATARIO\s*([^\n]+)/i;
+    const addressRegex = /([^\n,]+),\s*(\d+)([^\n,]*)?,/i;
     const bairroRegex = /Bairro:\s*([^\n]+)/i;
-    const cidadeEstadoRegex = /,\s*(\w+),\s*([^\n]+)/i;
     const cepRegex = /CEP:\s*(\d{5}-\d{3})/i;
   
     // Destinatário
@@ -287,24 +288,18 @@ export const ProcessImageModal: React.FC<ProcessImageModalProps> = ({
       addressDetails.destinatario = destinatarioMatch[1].trim();
     }
   
-    // Endereço e Número
-    const enderecoMatch = enderecoRegex.exec(text);
-    if (enderecoMatch) {
-      addressDetails.street = enderecoMatch[1].trim();
-      addressDetails.number = enderecoMatch[2].trim();
+    // Endereço, Número e Complemento
+    const addressMatch = addressRegex.exec(text);
+    if (addressMatch) {
+      addressDetails.street = addressMatch[1].trim(); // Nome da rua
+      addressDetails.number = addressMatch[2].trim(); // Número
+      addressDetails.complement = addressMatch[3] ? addressMatch[3].trim() : ''; // Complemento, se existir
     }
   
     // Bairro
     const bairroMatch = bairroRegex.exec(text);
     if (bairroMatch) {
       addressDetails.neighborhood = bairroMatch[1].trim();
-    }
-  
-    // Cidade e Estado
-    const cidadeEstadoMatch = cidadeEstadoRegex.exec(text);
-    if (cidadeEstadoMatch) {
-      addressDetails.city = cidadeEstadoMatch[1].trim();
-      addressDetails.state = cidadeEstadoMatch[2].trim();
     }
   
     // CEP
@@ -315,19 +310,6 @@ export const ProcessImageModal: React.FC<ProcessImageModalProps> = ({
   
     return addressDetails;
   };
-
-  const renderProgressBar = () => (
-    <LinearProgress
-      variant="determinate"
-      value={progress}
-      sx={{
-        height: 10,
-        background: 'linear-gradient(to right, #3f51b5, #2196f3)',
-        borderRadius: '5px',
-      }}
-    />
-  )
-  
 
   const handleSnackbarClose = () => {
     setSnackbarMessage({ ...snackbarMessage, open: false });
@@ -361,7 +343,6 @@ const handleSaveAddresses = async () => {
         clientsId: clientId,
       };
 
-      // Faz a requisição para cada endereço individualmente
       await api.post('/packages', formattedAddress);
     }
 
@@ -476,7 +457,7 @@ const handleSaveAddresses = async () => {
             marginBottom: isMobile ? 1 : 2,
           }}
         >
-          Bipe seus arquivos
+          Faça upload das suas imagens para começar!
         </Typography>
         <Divider sx={{ marginBottom: isMobile ? 2 : 3 }} />
 
