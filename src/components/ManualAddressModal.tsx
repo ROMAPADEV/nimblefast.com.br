@@ -95,7 +95,7 @@ export const ManualAddressModal: React.FC<ManualAddressModalProps> = ({
         city,
         state,
         postalCode,
-        number,
+        number: number || 'S/N',
         lat: String(lat),
         lng: String(lng),
         value: 1,
@@ -160,7 +160,7 @@ export const ManualAddressModal: React.FC<ManualAddressModalProps> = ({
       <DialogTitle>Cadastrar Endereço Manualmente</DialogTitle>
       <DialogContent>
         <Box display="flex" flexDirection="column" gap={2}>
-          <Box display="flex" alignItems="center">
+          <Box display="flex">
             <TextField
               label="Digite o endereço"
               value={inputValue}
@@ -179,13 +179,14 @@ export const ManualAddressModal: React.FC<ManualAddressModalProps> = ({
               sx={{
                 border: '1px solid #ccc',
                 borderRadius: '4px',
-                marginTop: '8px',
+                marginTop: '40px',
                 position: 'absolute',
                 zIndex: 999,
                 backgroundColor: '#fff',
                 maxHeight: '150px',
                 overflowY: 'auto',
                 width: '100%',
+                boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.2)',
               }}
             >
               {suggestions.map((suggestion) => (
@@ -204,9 +205,9 @@ export const ManualAddressModal: React.FC<ManualAddressModalProps> = ({
             </Box>
           )}
 
-          <TextField label="CEP" value={postalCode} fullWidth />
+          <TextField label="CEP" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} fullWidth />
           <TextField label="Rua" value={street} fullWidth disabled />
-          <TextField label="Número" value={number} fullWidth  />
+          <TextField label="Número" value={number} onChange={(e) => setNumber(e.target.value)} fullWidth  />
           <TextField label="Bairro" value={neighborhood} fullWidth disabled />
           <TextField label="Cidade" value={city} fullWidth disabled />
           <TextField label="Estado" value={state} fullWidth disabled />
