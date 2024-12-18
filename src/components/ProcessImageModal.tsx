@@ -17,6 +17,7 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Skeleton,
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import CloseIcon from '@mui/icons-material/Close';
@@ -418,120 +419,213 @@ const handleSaveAddresses = async () => {
 
   return (
     <>
-       <Modal open={open} onClose={onClose} aria-labelledby="process-image-modal">
+      <Modal open={open} onClose={onClose} aria-labelledby="process-image-modal">
+  <Box
+    sx={{
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      padding: isMobile ? 2 : 4,
+      backgroundColor: (theme) =>
+        theme.palette.mode === 'dark' ? '#1E1E1E' : '#f4f6f8',
+      borderRadius: 4,
+      boxShadow: '0px 8px 30px rgba(0, 0, 0, 0.15)',
+      maxWidth: isMobile ? '90%' : '60%',
+      width: isMobile ? '100%' : 'auto',
+      height: isMobile ? '85vh' : 'auto',
+      maxHeight: '90vh',
+      overflowY: 'hidden',
+    }}
+  >
+    {/* Botão de Fechar */}
+    <IconButton
+      aria-label="close"
+      onClick={onClose}
+      sx={{
+        position: 'absolute',
+        right: 16,
+        top: 16,
+        color: '#757575',
+      }}
+    >
+      <CloseIcon />
+    </IconButton>
+
+    {/* Título */}
+    <Typography
+      variant="h5"
+      align="center"
+      sx={{
+        color: '#3f51b5',
+        fontWeight: 600,
+        marginBottom: isMobile ? 1 : 2,
+      }}
+    >
+      Faça upload das suas imagens para começar!
+    </Typography>
+    <Divider sx={{ marginBottom: isMobile ? 2 : 3 }} />
+
+    {/* Pré-visualização da Imagem */}
+    {imagePreview && (
       <Box
         sx={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          padding: isMobile ? 2 : 4,
-          backgroundColor: (theme) => (theme.palette.mode === 'dark' ? '#1E1E1E' : '#f4f6f8'),
-          borderRadius: 4,
-          boxShadow: '0px 8px 30px rgba(0, 0, 0, 0.15)',
-          maxWidth: isMobile ? '90%' : '60%',
-          width: isMobile ? '100%' : 'auto',
-          height: isMobile ? '85vh' : 'auto',
-          maxHeight: '90vh',
-          overflowY: 'hidden',
+          display: 'flex',
+          justifyContent: 'center',
+          marginBottom: 2,
         }}
       >
-        <IconButton
-          aria-label="close"
-          onClick={onClose}
-          sx={{
-            position: 'absolute',
-            right: 16,
-            top: 16,
-            color: '#757575',
+        <img
+          src={imagePreview}
+          alt="Preview"
+          style={{
+            maxHeight: 150,
+            borderRadius: 8,
+            boxShadow: '0px 4px 10px rgba(0, 0, 0, 0.1)',
           }}
-        >
-          <CloseIcon />
-        </IconButton>
-        <Typography
-          variant="h5"
-          align="center"
-          sx={{
-            color: '#3f51b5',
-            fontWeight: 600,
-            marginBottom: isMobile ? 1 : 2,
-          }}
-        >
-          Faça upload das suas imagens para começar!
-        </Typography>
-        <Divider sx={{ marginBottom: isMobile ? 2 : 3 }} />
+        />
+      </Box>
+    )}
 
-        {loading ? (
-          <CircularProgress />
-        ) : (
-          <>
-            {imagePreview && (
-              <img
-                src={imagePreview}
-                alt="Preview"
-                style={{
-                  width: 'auto',
-                  maxHeight: isMobile ? 150 : 200,
-                  marginBottom: isMobile ? 16 : 20,
-                  borderRadius: '8px',
-                  boxShadow: '0px 4px 10px rgba(0, 0, 0, 0.1)',
-                }}
-              />
-            )}
-            <Button
-              variant="contained"
-              color="primary"
-              startIcon={<CloudUploadIcon />}
-              component="label"
-              sx={{
-                padding: '8px 16px',
-                backgroundColor: '#3f51b5',
-                fontWeight: 600,
-                borderRadius: 3,
-                boxShadow: '0px 3px 8px rgba(63, 81, 181, 0.3)',
-                marginBottom: 2,
-                width: isMobile ? '100%' : 'auto',
-              }}
-            >
-              Escolher Imagem
-              <input type="file" accept="image/*" hidden multiple onChange={handleFileChange} />
-            </Button>
-          </>
-        )}
-
-        <Box 
-          sx={{ height: isMobile ? '40vh' : 300, width: '100%', marginTop: 4 }}>
-          <DataGrid rows={addressData} columns={columns} pageSizeOptions={[5]} />
+    {/* Skeleton Loading ou Conteúdo */}
+    <Box
+      sx={{
+        height: isMobile ? '40vh' : 300,
+        width: '100%',
+        marginTop: 2,
+      }}
+    >
+      {loading ? (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {[...Array(5)].map((_, index) => (
+            <Skeleton
+              key={index}
+              variant="rectangular"
+              height={40}
+              animation="wave"
+              sx={{ borderRadius: 1, width: '100%' }}
+            />
+          ))}
         </Box>
-
-        <Box  
+      ) : addressData.length > 0 ? (
+        <DataGrid rows={addressData} columns={columns} pageSizeOptions={[5]} />
+      ) : (
+        // Mensagem e Botão "Escolher Imagem" quando não houver dados
+        <Box
           sx={{
             display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
             justifyContent: 'center',
-            marginTop: 2,
-            position: 'sticky',
-            bottom: 0,
-            backgroundColor: (theme) => (theme.palette.mode === 'dark' ? '#1E1E1E' : '#f4f6f8'),
-            padding: 2,
-          }}>
-          <LoadingButton
+            height: '100%',
+            color: '#9e9e9e',
+          }}
+        >
+          <CloudUploadIcon
+            sx={{ fontSize: 60, marginBottom: 2, color: '#3f51b5' }}
+          />
+          <Typography variant="h6" sx={{ marginBottom: 2 }}>
+            Nenhum Dado Disponível
+          </Typography>
+          <Typography
+            variant="body1"
+            sx={{ marginBottom: 3, textAlign: 'center' }}
+          >
+            Faça o upload de uma imagem para extrair os endereços
+            automaticamente.
+          </Typography>
+          <Button
             variant="contained"
-            color="success"
-            onClick={handleSaveAddresses}
-            loading={saving}
+            color="primary"
+            startIcon={<CloudUploadIcon />}
+            component="label"
             sx={{
-              width: isMobile ? '100%' : 'auto',
-              fontWeight: 'bold',
+              padding: '10px 20px',
               borderRadius: 3,
-              backgroundColor: '#4caf50',
-              ':hover': { backgroundColor: '#43a047' },
+              boxShadow: '0px 3px 8px rgba(63, 81, 181, 0.3)',
             }}
           >
-            Salvar Endereços
-          </LoadingButton>
+            Escolher Imagem
+            <input
+              type="file"
+              accept="image/*"
+              hidden
+              multiple
+              onChange={handleFileChange}
+            />
+          </Button>
         </Box>
+      )}
+    </Box>
+
+    {/* Botões de Ação */}
+    {addressData.length > 0 && (
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'flex-start', // Alinhamento para a esquerda
+          gap: 1, // Espaçamento entre botões
+          marginTop: 2,
+          position: 'sticky',
+          bottom: 0,
+          backgroundColor: (theme) =>
+            theme.palette.mode === 'dark' ? '#1E1E1E' : '#f4f6f8',
+          padding: 2,
+        }}
+      >
+        {/* Botão Salvar Endereços */}
+        <LoadingButton
+          variant="contained"
+          color="primary"
+          onClick={handleSaveAddresses}
+          loading={saving}
+          sx={{
+            width: 'auto',
+            fontWeight: 'bold',
+            fontSize: '0.9rem',
+            padding: '10px 20px',
+            borderRadius: 4,
+            backgroundColor: '#1E88E5',
+            boxShadow: '0px 4px 12px rgba(30, 136, 229, 0.4)',
+            ':hover': { backgroundColor: '#1565C0' },
+          }}
+        >
+          Salvar Endereços
+        </LoadingButton>
+
+        {/* Botão Adicionar Nova Imagem */}
+        <Button
+          variant="outlined"
+          color="primary"
+          startIcon={<CloudUploadIcon />}
+          component="label"
+          sx={{
+            fontWeight: 'bold',
+            fontSize: '0.9rem',
+            padding: '10px 20px',
+            borderRadius: 4,
+            borderColor: '#1E88E5',
+            color: '#1E88E5',
+            ':hover': {
+              backgroundColor: '#E3F2FD',
+              borderColor: '#1565C0',
+              color: '#1565C0',
+            },
+          }}
+        >
+          Adicionar Nova Imagem
+          <input
+            type="file"
+            accept="image/*"
+            hidden
+            multiple
+            onChange={handleFileChange}
+          />
+        </Button>
       </Box>
-    </Modal>
+    )}
+  </Box>
+</Modal>
 
     <Modal open={editModalOpen} onClose={() => setEditModalOpen(false)} aria-labelledby="edit-modal">
         <Box
